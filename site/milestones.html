@@ -47,7 +47,7 @@
     <tr><td>1</td><td>Core schemas</td><td>pydantic models for examples, manifest, release, audit result, findings, split spec, difficulty, bootstrap, card + tests</td><td><span class="status done">done</span></td></tr>
     <tr><td>2</td><td>Fixture datasets</td><td>qa / agent / retrieval / bio / safety toy sets with deliberate defects; ground-truth defect files; validation script</td><td><span class="status done">done</span></td></tr>
     <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status done">done</span></td></tr>
-    <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status done">done</span></td></tr>
     <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>6</td><td>Label audit</td><td>missing / conflicting / ambiguous / format checks; adjudication queue export</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>7</td><td>Split builder</td><td>random, stratified (family/difficulty), source-grouped, adversarial</td><td><span class="status pending">planned</span></td></tr>
@@ -109,10 +109,21 @@
   <code>--redact-out</code>); a safe-data check confirms every committed fixture
   scans clean. See the <a href="validation.html">Validation</a> page.</p>
 
-  <h3>Milestone 4 — Deduplication</h3>
-  <p>Exact (hashing), normalized-text, and heuristic near-duplicate detection
-  (token n-gram Jaccard; optional TF-IDF cosine with a pure-Python fallback).
-  Tests use fixtures with known duplicate clusters.</p>
+  <h3>Milestone 4 — Deduplication <span class="status done">done</span></h3>
+  <p>A three-stage ladder, disjoint by construction: sha256 exact matching on
+  <code>(input, expected_output)</code>; normalized-text matching (NFKC, case,
+  punctuation, whitespace) applied to the prompt only, so a code rubric is never
+  punctuation-folded into a different answer; and heuristic near-duplicate
+  detection over word n-grams — pure-Python Jaccard, or idf-weighted TF-IDF cosine
+  when scikit-learn is present, with automatic fallback recorded on every finding.
+  A default <strong>answer gate</strong> requires candidate pairs to agree on their
+  gold answer, which removes the two highest-scoring non-duplicates in the fixtures.
+  Thresholds are <em>calibrated</em>, not asserted: a documented sweep puts both
+  methods' knee at 0.30, where TF-IDF recovers 4 of 5 planted paraphrases and
+  Jaccard 3 of 5, while exact recall is 4/4 with zero false positives. Two failure
+  modes — one unreachable paraphrase and a template-question false positive — are
+  pinned by regression tests so a future improvement cannot silently invalidate the
+  docs. See the <a href="deduplication.html">Deduplication</a> page.</p>
 
   <h3>Milestone 5 — Leakage checks</h3>
   <p>Train/test overlap, answer-in-prompt containment, high n-gram overlap against

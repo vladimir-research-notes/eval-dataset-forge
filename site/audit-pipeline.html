@@ -41,7 +41,7 @@
   <table>
     <tr><th>stage</th><th>what it checks</th><th>exact / heuristic</th></tr>
     <tr><td><a href="validation.html">validate</a> <span class="status done">M3</span></td><td>schema, ID uniqueness, PII/secrets, quality</td><td>exact + heuristic</td></tr>
-    <tr><td>dedup</td><td>exact, normalized, near-duplicate</td><td>exact + heuristic</td></tr>
+    <tr><td><a href="deduplication.html">dedup</a> <span class="status done">M4</span></td><td>exact, normalized, near-duplicate</td><td>exact + heuristic</td></tr>
     <tr><td>leakage</td><td>train/test overlap, answer-in-prompt, n-gram, retrieval</td><td>heuristic</td></tr>
     <tr><td>label-audit</td><td>missing, conflicting, ambiguous, format</td><td>heuristic + exact</td></tr>
     <tr><td>difficulty</td><td>transparent heuristic score + buckets</td><td>heuristic</td></tr>
@@ -74,9 +74,10 @@ evalforge smoke --out results/reports/smoke_audit.md   # all fixtures at once</c
     <li>docs/METHODOLOGY.md</li>
   </ul>
   <h3>Status</h3>
-  <p>The first stage — <a href="validation.html">validate</a> — is implemented
-  (Milestone 3). The remaining stage modules land in Milestones 4–9; the report
-  and end-to-end smoke audit are assembled in Milestones 11–12.</p>
+  <p>The first two stages — <a href="validation.html">validate</a> (Milestone 3)
+  and <a href="deduplication.html">dedup</a> (Milestone 4) — are implemented. The
+  remaining stage modules land in Milestones 5–9; the report and end-to-end smoke
+  audit are assembled in Milestones 11–12.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

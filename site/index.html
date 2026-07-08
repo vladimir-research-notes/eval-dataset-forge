@@ -81,12 +81,16 @@
   Milestone 1; Milestone 2 added five synthetic <a href="schema.html#fixtures">fixture
   datasets</a> with deliberately planted defects and a machine-readable
   ground-truth file per fixture, so the audit stages can later be scored for
-  recall against known defects; and Milestone 3 landed the first pipeline stage —
+  recall against known defects; Milestone 3 landed the first pipeline stage —
   <a href="validation.html">validation &amp; redaction</a> (schema, ID uniqueness,
   PII/secret detection, and typed-placeholder redaction), wiring the
-  <code>evalforge validate</code> command. The remaining audit subsystems follow
-  milestone by milestone — see <a href="milestones.html">Milestones</a> and the
-  <code>docs/PLAN.md</code> build contract.</p>
+  <code>evalforge validate</code> command; and Milestone 4 added the second —
+  <a href="deduplication.html">deduplication</a>, a three-stage exact / normalized /
+  heuristic ladder whose near-duplicate thresholds are calibrated against the
+  fixtures' planted paraphrases and whose two failure modes are pinned by regression
+  tests. The remaining audit subsystems follow milestone by milestone — see
+  <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
+  contract.</p>
 
   <div class="callout">This is a benchmark-quality instrument, not a certifier of
   universal benchmark quality and not a medical, legal, or security authority.

@@ -53,6 +53,13 @@
       regexes and entropy heuristic recognize — it misses novel formats (false
       negatives) and can flag benign high-entropy or digit-heavy strings (false
       positives). It is a project-local sanitizer, not a DLP guarantee.</li>
+    <li><strong>Near-duplicate detection is lexical, and measurably incomplete.</strong>
+      <a href="deduplication.html">Dedup</a> recovers 4 of 5 planted paraphrases with
+      TF-IDF (3 of 5 with pure-Python Jaccard). One planted pair is unreachable by
+      <em>any</em> threshold — a genuine non-duplicate in the same fixture scores
+      higher — and same-template questions sharing a gold answer are a standing false
+      positive. Thresholds are tuned in-sample on 56 synthetic examples. Exact and
+      normalized dedup, by contrast, have no false positives.</li>
   </ul>
 
   <h2>Non-goals</h2>
