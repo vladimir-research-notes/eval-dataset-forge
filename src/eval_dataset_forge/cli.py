@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import argparse
 import importlib.util
+import json
 import sys
 
 from eval_dataset_forge import SCHEMA_VERSION, __version__
@@ -21,7 +22,6 @@ from eval_dataset_forge import SCHEMA_VERSION, __version__
 # Subcommands that are declared now but implemented in a later milestone. Maps
 # the command name to the milestone number that lands it (see docs/PLAN.md).
 _PENDING = {
-    "validate": 3,
     "audit": 12,
     "build-splits": 7,
     "dataset-card": 11,
@@ -84,6 +84,31 @@ def cmd_check_env(_args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_validate(args: argparse.Namespace) -> int:
+    """Validate a dataset file: schema, ID uniqueness, quality, PII/secrets.
+
+    Exit code 0 iff the report has no *errors* (schema errors, duplicate ids, and
+    secret-class findings — plus all PII when ``--fail-on-pii`` is set). Warnings
+    never change the exit code. The validation package is imported lazily so the
+    stdlib-only commands keep working without the scientific stack.
+    """
+    from eval_dataset_forge.validation import (
+        format_report,
+        validate_dataset,
+        write_redacted,
+    )
+
+    report = validate_dataset(args.dataset, fail_on_pii=args.fail_on_pii)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_report(report))
+    if args.redact_out:
+        n = write_redacted(args.dataset, args.redact_out)
+        print(f"\nwrote {n} redacted example(s) to {args.redact_out}")
+    return 0 if report.ok else 1
+
+
 def _cmd_pending(name: str):
     def handler(_args: argparse.Namespace) -> int:
         milestone = _PENDING[name]
@@ -108,9 +133,25 @@ def build_parser() -> argparse.ArgumentParser:
         func=cmd_check_env
     )
 
-    p_validate = sub.add_parser("validate", help="validate a dataset against the schema")
+    p_validate = sub.add_parser(
+        "validate",
+        help="validate a dataset: schema, ID uniqueness, quality, PII/secrets",
+    )
     p_validate.add_argument("--dataset", required=True, help="path to examples.jsonl")
-    p_validate.set_defaults(func=_cmd_pending("validate"))
+    p_validate.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_validate.add_argument(
+        "--fail-on-pii",
+        action="store_true",
+        help="treat all PII findings (not just secrets) as errors",
+    )
+    p_validate.add_argument(
+        "--redact-out",
+        metavar="PATH",
+        help="also write a redacted copy of the valid examples to PATH",
+    )
+    p_validate.set_defaults(func=cmd_validate)
 
     p_audit = sub.add_parser("audit", help="run the full audit pipeline over a dataset")
     p_audit.add_argument("--dataset", required=True, help="path to examples.jsonl")

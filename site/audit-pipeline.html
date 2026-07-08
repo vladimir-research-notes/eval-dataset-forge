@@ -13,6 +13,7 @@
   <nav class="site">
     <a href="index.html">Overview</a>
     <a href="schema.html">Schema</a>
+    <a href="validation.html">Validation</a>
     <a href="audit-pipeline.html" class="active">Audit pipeline</a>
     <a href="deduplication.html">Deduplication</a>
     <a href="leakage.html">Leakage</a>
@@ -39,7 +40,7 @@
      → splits → statistics → report</code></pre>
   <table>
     <tr><th>stage</th><th>what it checks</th><th>exact / heuristic</th></tr>
-    <tr><td>validate</td><td>schema, ID uniqueness, PII, quality</td><td>exact</td></tr>
+    <tr><td><a href="validation.html">validate</a> <span class="status done">M3</span></td><td>schema, ID uniqueness, PII/secrets, quality</td><td>exact + heuristic</td></tr>
     <tr><td>dedup</td><td>exact, normalized, near-duplicate</td><td>exact + heuristic</td></tr>
     <tr><td>leakage</td><td>train/test overlap, answer-in-prompt, n-gram, retrieval</td><td>heuristic</td></tr>
     <tr><td>label-audit</td><td>missing, conflicting, ambiguous, format</td><td>heuristic + exact</td></tr>
@@ -73,8 +74,9 @@ evalforge smoke --out results/reports/smoke_audit.md   # all fixtures at once</c
     <li>docs/METHODOLOGY.md</li>
   </ul>
   <h3>Status</h3>
-  <p>Stage modules land in Milestones 3–9; the report and end-to-end smoke audit
-  are assembled in Milestones 11–12.</p>
+  <p>The first stage — <a href="validation.html">validate</a> — is implemented
+  (Milestone 3). The remaining stage modules land in Milestones 4–9; the report
+  and end-to-end smoke audit are assembled in Milestones 11–12.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

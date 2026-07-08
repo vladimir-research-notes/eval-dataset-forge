@@ -13,6 +13,7 @@
   <nav class="site">
     <a href="index.html" class="active">Overview</a>
     <a href="schema.html">Schema</a>
+    <a href="validation.html">Validation</a>
     <a href="audit-pipeline.html">Audit pipeline</a>
     <a href="deduplication.html">Deduplication</a>
     <a href="leakage.html">Leakage</a>
@@ -28,7 +29,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status scaffold">Milestone 2 — fixture datasets</span></p>
+  <p><span class="status scaffold">Milestone 3 — validation &amp; redaction</span></p>
   <h1>Make evaluation datasets trustworthy</h1>
   <p class="lede">A benchmark that reports one accuracy number hides most of what
   decides whether that number means anything. eval-dataset-forge turns
@@ -77,11 +78,14 @@
   <p>The scaffold, plan, CLI, website, environment check, milestone runner, and
   CPU-only test suite are in place; the typed data contracts every stage builds
   on — the pydantic v2 <a href="schema.html">schema models</a> — landed in
-  Milestone 1; and Milestone 2 added five synthetic <a href="schema.html#fixtures">fixture
+  Milestone 1; Milestone 2 added five synthetic <a href="schema.html#fixtures">fixture
   datasets</a> with deliberately planted defects and a machine-readable
   ground-truth file per fixture, so the audit stages can later be scored for
-  recall against known defects. The audit subsystems follow milestone by
-  milestone — see <a href="milestones.html">Milestones</a> and the
+  recall against known defects; and Milestone 3 landed the first pipeline stage —
+  <a href="validation.html">validation &amp; redaction</a> (schema, ID uniqueness,
+  PII/secret detection, and typed-placeholder redaction), wiring the
+  <code>evalforge validate</code> command. The remaining audit subsystems follow
+  milestone by milestone — see <a href="milestones.html">Milestones</a> and the
   <code>docs/PLAN.md</code> build contract.</p>
 
   <div class="callout">This is a benchmark-quality instrument, not a certifier of

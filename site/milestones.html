@@ -13,6 +13,7 @@
   <nav class="site">
     <a href="index.html">Overview</a>
     <a href="schema.html">Schema</a>
+    <a href="validation.html">Validation</a>
     <a href="audit-pipeline.html">Audit pipeline</a>
     <a href="deduplication.html">Deduplication</a>
     <a href="leakage.html">Leakage</a>
@@ -45,7 +46,7 @@
     <tr><td>0</td><td>Scaffold &amp; project contract</td><td>repo tree, package + CLI stub, PLAN/CLAUDE, website, env check, milestone runner, first tests</td><td><span class="status done">done</span></td></tr>
     <tr><td>1</td><td>Core schemas</td><td>pydantic models for examples, manifest, release, audit result, findings, split spec, difficulty, bootstrap, card + tests</td><td><span class="status done">done</span></td></tr>
     <tr><td>2</td><td>Fixture datasets</td><td>qa / agent / retrieval / bio / safety toy sets with deliberate defects; ground-truth defect files; validation script</td><td><span class="status done">done</span></td></tr>
-    <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status done">done</span></td></tr>
     <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>6</td><td>Label audit</td><td>missing / conflicting / ambiguous / format checks; adjudication queue export</td><td><span class="status pending">planned</span></td></tr>
@@ -95,11 +96,18 @@
   items are <code>SYNTHETIC-*-PLACEHOLDER</code> strings with no operational
   content.</p>
 
-  <h3>Milestone 3 — Validation &amp; redaction</h3>
-  <p>Turn the schema into an enforced gate: required fields, type checks, ID
-  uniqueness, metadata consistency. Add PII-like detection (emails, tokens,
-  key-shaped strings) and deterministic redaction, plus a safe-data check. Wires
-  the <code>validate</code> CLI.</p>
+  <h3>Milestone 3 — Validation &amp; redaction <span class="status done">done</span></h3>
+  <p>Turns the schema into an enforced gate: required fields, type checks, ID
+  uniqueness. Parsing is lenient so <em>every</em> problem across a file is
+  reported in one pass, each addressed by record ordinal. Adds heuristic
+  PII/secret detection (emails, phones, IPv4, <code>AKIA…</code> keys, PEM
+  headers, <code>key = value</code> assignments, and bare high-entropy tokens)
+  with deterministic typed-placeholder redaction whose report snippets never leak
+  the raw value. A severity policy separates always-fatal <em>secrets</em> from
+  <em>PII</em> warnings (promotable with <code>--fail-on-pii</code>). The
+  <code>validate</code> CLI is wired (<code>--json</code>,
+  <code>--redact-out</code>); a safe-data check confirms every committed fixture
+  scans clean. See the <a href="validation.html">Validation</a> page.</p>
 
   <h3>Milestone 4 — Deduplication</h3>
   <p>Exact (hashing), normalized-text, and heuristic near-duplicate detection

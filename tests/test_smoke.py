@@ -38,6 +38,15 @@ def test_no_args_prints_help(capsys) -> None:
 
 
 def test_pending_commands_exit_2(capsys) -> None:
-    rc = main(["validate", "--dataset", "datasets/fixtures/qa_toy/examples.jsonl"])
+    # `audit` is still a stub (lands in Milestone 12) and exits 2 with a pointer.
+    rc = main(["audit", "--dataset", "datasets/fixtures/qa_toy/examples.jsonl",
+               "--out", "results/audits/qa_toy/"])
     assert rc == 2
     assert "Milestone" in capsys.readouterr().out
+
+
+def test_validate_command_implemented(capsys) -> None:
+    # `validate` landed in Milestone 3: a clean fixture validates and exits 0.
+    rc = main(["validate", "--dataset", "datasets/fixtures/qa_toy/examples.jsonl"])
+    assert rc == 0
+    assert "verdict" in capsys.readouterr().out
