@@ -5,6 +5,29 @@ This document defines the on-disk formats. The authoritative implementation is
 this document and that module must stay in sync. `SCHEMA_VERSION` in
 `src/eval_dataset_forge/__init__.py` is bumped on any breaking change.
 
+**Status (Milestone 1).** All eleven models below are implemented and tested
+(`tests/test_schemas.py`). What the models enforce:
+
+- **Unknown fields are rejected** (`extra="forbid"`). A misspelled key such as
+  `expcted_output` fails at load time rather than being silently dropped;
+  free-form extension belongs in the explicit `metadata` / `labels` dicts.
+- **String-valued enums.** `split`, and the finding `kind` fields, are
+  `StrEnum`s, so `model_dump(mode="json")` produces plain JSONL with no custom
+  encoder and reloads exactly.
+- **Identity fields are non-empty** (`example_id`, `source_id`, `task_family`,
+  `dataset_id`, `version`, `audit_id`, `metric`).
+- **Cross-field validators** reject structurally impossible records: split
+  `ratios` (when present) must be non-negative and sum to 1.0; a
+  `BootstrapResult` must satisfy `ci_low ≤ ci_high` with `n_resamples ≥ 1`; a
+  `DatasetRelease` must have `manifest.example_count == len(examples)` once
+  examples are attached.
+
+These are **structural** checks. Semantic defects (a wrong gold answer, a leaked
+answer, a label conflict) are the job of the later audit stages, not the schema.
+`task_family` is deliberately an open string vocabulary; the validation layer
+(Milestone 3) may *warn* on families outside `KNOWN_TASK_FAMILIES` but the schema
+does not reject them.
+
 ## Formats
 
 - **Examples**: JSON Lines (`.jsonl`), one `DatasetExample` per line. YAML is

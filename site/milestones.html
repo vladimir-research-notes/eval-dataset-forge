@@ -43,7 +43,7 @@
   <table>
     <tr><th>#</th><th>milestone</th><th>what it delivers</th><th>status</th></tr>
     <tr><td>0</td><td>Scaffold &amp; project contract</td><td>repo tree, package + CLI stub, PLAN/CLAUDE, website, env check, milestone runner, first tests</td><td><span class="status done">done</span></td></tr>
-    <tr><td>1</td><td>Core schemas</td><td>pydantic models for examples, manifest, release, audit result, findings, split spec, difficulty, bootstrap, card + tests</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>1</td><td>Core schemas</td><td>pydantic models for examples, manifest, release, audit result, findings, split spec, difficulty, bootstrap, card + tests</td><td><span class="status done">done</span></td></tr>
     <tr><td>2</td><td>Fixture datasets</td><td>qa / agent / retrieval / bio / safety toy sets with deliberate defects; validation script</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status pending">planned</span></td></tr>
@@ -62,13 +62,18 @@
 
   <h2>Per-milestone detail</h2>
 
-  <h3>Milestone 1 — Core schemas</h3>
+  <h3>Milestone 1 — Core schemas <span class="status done">done</span></h3>
   <p>Define the typed data contracts (pydantic v2) that every later stage relies
   on: <code>DatasetExample</code>, <code>DatasetManifest</code>,
   <code>DatasetRelease</code>, <code>AuditResult</code>, the finding types,
   <code>SplitSpec</code>, <code>DifficultyScore</code>,
   <code>BootstrapResult</code>, and <code>DatasetCard</code>. Round-trip
-  (load→dump) tests lock the on-disk format.</p>
+  (load→dump) tests lock the on-disk format. Landed in
+  <code>src/eval_dataset_forge/schemas.py</code> with strict unknown-field
+  rejection, string-valued enums for clean JSONL serialization, and cross-field
+  validators (ratio sum, CI ordering, release/manifest count). Covered by
+  <code>tests/test_schemas.py</code> — see the <a href="schema.html">Schema</a>
+  page.</p>
 
   <h3>Milestone 2 — Fixture datasets</h3>
   <p>Author the five small, synthetic toy datasets. Defects are planted on
