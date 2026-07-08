@@ -13,12 +13,20 @@ evidence about any real benchmark's quality. Results reported in
 
 - Near-duplicate detection (token/TF-IDF similarity) misses deep paraphrases and
   can over-flag similar-but-distinct items.
-- Answer-in-prompt and n-gram leakage checks are lexical; they miss entailed
-  answers and can false-positive on formulaic text.
+- Answer-in-prompt detection is lexical: it sees a *quoted* answer and misses an
+  *entailed* one, and it cannot distinguish a leak from a legitimate restatement
+  ("extract the year 2020 from: … in 2020 …").
+- Cross-split overlap inherits every near-duplicate blind spot: a paraphrase the
+  dedup ladder cannot see, it cannot see either.
+- The retrieval artifact marker is a curated list of annotation conventions
+  (`answer:`, `label:`, `ground truth:`), not a general detector. A corpus leaking
+  its labels under another convention passes clean.
 - Difficulty scoring is a surface-feature proxy, not ground truth.
 - Ambiguity and label-conflict detection are advisory; a human adjudicates.
 
-Each heuristic documents its failure modes in its own doc.
+Each heuristic documents its failure modes in its own doc, and each documented
+failure is asserted by a test, so a future improvement cannot silently invalidate
+the documentation.
 
 ## Contamination we cannot see
 

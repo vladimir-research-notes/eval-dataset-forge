@@ -48,7 +48,7 @@
     <tr><td>2</td><td>Fixture datasets</td><td>qa / agent / retrieval / bio / safety toy sets with deliberate defects; ground-truth defect files; validation script</td><td><span class="status done">done</span></td></tr>
     <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status done">done</span></td></tr>
     <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status done">done</span></td></tr>
-    <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status done">done</span></td></tr>
     <tr><td>6</td><td>Label audit</td><td>missing / conflicting / ambiguous / format checks; adjudication queue export</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>7</td><td>Split builder</td><td>random, stratified (family/difficulty), source-grouped, adversarial</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>8</td><td>Difficulty calibration</td><td>transparent heuristics + difficulty distribution reports</td><td><span class="status pending">planned</span></td></tr>
@@ -125,10 +125,22 @@
   pinned by regression tests so a future improvement cannot silently invalidate the
   docs. See the <a href="deduplication.html">Deduplication</a> page.</p>
 
-  <h3>Milestone 5 — Leakage checks</h3>
-  <p>Train/test overlap, answer-in-prompt containment, high n-gram overlap against
-  a supplied reference, and retrieval-document contamination — each producing a
-  <code>LeakageFinding</code> with evidence.</p>
+  <h3>Milestone 5 — Leakage checks <span class="status done">done</span></h3>
+  <p>Four channels, each emitting exactly one <code>LeakageKind</code>: cross-split
+  overlap (the dedup ladder's clusters, filtered to those spanning two splits, with
+  each stage's certainty inherited); answer-in-prompt containment; reference n-gram
+  overlap; and retrieval-document contamination. Unlike the dedup ladder they
+  <em>overlap on purpose</em> — and it pays off: the one planted defect the ladder is
+  provably blind to (<code>ret-001</code>~<code>ret-002</code>, a deep query paraphrase)
+  is recovered by the passage-level check, because both examples cite the identical gold
+  passage under different ids. Per-kind recall is 11/12; across channels, 12/12.
+  Thresholds are <em>calibrated</em>: a sweep shows <code>n=2</code> is the only
+  answer-containment width that recovers both planted leaks with zero false positives,
+  and its default threshold sits mid-plateau (weakest true positive 0.600, strongest
+  non-leak 0.333). A label-vocabulary guard stops classification datasets from flagging
+  every row, and prints what it ignored. Two honest negatives are documented rather than
+  buried: the n-gram channel is redundant on these fixtures, and one reported overlap
+  contradicts the fixture ground truth. See the <a href="leakage.html">Leakage</a> page.</p>
 
   <h3>Milestone 6 — Label audit</h3>
   <p>Detect missing, conflicting, ambiguous, and inconsistently formatted labels;

@@ -29,45 +29,263 @@
   </nav>
 </header>
 <main>
-  <p><span class="status pending">implemented in Milestone 5</span></p>
+  <p><span class="status done">implemented · Milestone 5</span></p>
   <h1>Leakage &amp; contamination</h1>
-  <p class="lede">Leakage is any path by which a system scores well without
-  demonstrating the capability the benchmark intends to measure. We check four
-  kinds.</p>
+  <p class="lede">Audit dimension #4: can a system score well here without doing
+  the task? Four checks look for four distinct paths, each emitting exactly one
+  <code>LeakageKind</code>.</p>
 
-  <h2>1 · Train/test overlap</h2>
-  <p>Exact or normalized duplicates that straddle two splits. Reuses the dedup
-  machinery but restricts attention to cross-split pairs.</p>
+  <table>
+    <tr><th>check</th><th>module</th><th>certainty</th><th>catches</th></tr>
+    <tr><td>1 · Cross-split overlap</td><td><code>train_test_overlap.py</code></td><td>inherited from dedup</td><td>the same item in two splits</td></tr>
+    <tr><td>2 · Answer-in-prompt</td><td><code>answer_in_prompt.py</code></td><td><strong>heuristic</strong></td><td>the gold answer quoted in its own prompt</td></tr>
+    <tr><td>3 · Reference n-gram overlap</td><td><code>ngram_overlap.py</code></td><td>exact <em>given the width</em></td><td>a prompt verbatim in a reference corpus</td></tr>
+    <tr><td>4 · Retrieval contamination</td><td><code>retrieval_overlap.py</code></td><td>exact</td><td>annotation artifacts; shared gold passages</td></tr>
+  </table>
 
-  <h2>2 · Answer-in-prompt</h2>
-  <p>The <code>expected_output</code> (or a close variant) appears verbatim in the
-  <code>input</code>. Normalized substring / n-gram containment above a threshold;
-  the matched span is reported as evidence.</p>
+  <p>Unlike the <a href="deduplication.html">deduplication ladder</a>, whose three
+  stages are disjoint by construction, <strong>these four channels overlap on
+  purpose</strong>. A test example copied verbatim from train is a cross-split exact
+  duplicate <em>and</em> a full n-gram overlap against the train reference. Agreement
+  between independent channels is corroboration, not double counting — and the payoff
+  is measurable, as the <a href="#corroboration">corroboration</a> section shows.</p>
 
-  <h2>3 · High n-gram overlap</h2>
-  <p>For each test example, the maximum n-gram overlap (default n=8–13) against a
-  supplied reference corpus (train split or a public-safe reference). A standard
-  decontamination-style signal.</p>
+  <p>Nothing is removed and nothing is a verdict. <code>find_leakage()</code>
+  produces evidence; the <a href="splits.html">split builder</a> decides what to do
+  about it.</p>
+
+  <h2>1 · Cross-split overlap</h2>
+  <p>Filters the dedup ladder's clusters down to those spanning two or more assigned
+  splits, inheriting each stage's certainty exactly: exact clusters yield exact
+  findings, near-duplicate clusters yield heuristic ones. <code>dev</code>/<code>test</code>
+  overlap counts as the same defect as <code>train</code>/<code>test</code> — tuning on
+  an item, then scoring on it. <code>unassigned</code> is excluded: an example not yet
+  placed in a split cannot leak across one.</p>
+
+  <p><strong>Source-level dependence is a separate channel.</strong> Two examples from
+  one <code>source_id</code> are not duplicates — the fixtures' <code>src-shakespeare</code>
+  yields distinct questions about <em>Romeo and Juliet</em> and <em>Hamlet</em> — but they
+  are statistically dependent, and scattering them across splits leaks source-level
+  information. Reported on its own channel, because “dependent” and “duplicated” call
+  for different remedies: the first wants a source-grouped split, the second a deletion.</p>
+
+  <table>
+    <tr><th>fixture</th><th>planted pairs</th><th>Jaccard</th><th>TF-IDF</th></tr>
+    <tr><td><code>qa_toy</code></td><td>qa-001~qa-002, qa-003~qa-004</td><td>2 / 2</td><td>2 / 2</td></tr>
+    <tr><td><code>agent_tasks_toy</code></td><td>agent-001~agent-002, agent-005~agent-006</td><td>2 / 2</td><td>2 / 2</td></tr>
+    <tr><td><code>bio_toy</code></td><td>bio-001~bio-002, bio-003~bio-006</td><td>1 / 2</td><td>2 / 2</td></tr>
+    <tr><td><code>safety_toy</code></td><td>saf-001~saf-003, saf-004~saf-005</td><td>2 / 2</td><td>2 / 2</td></tr>
+    <tr><td><code>retrieval_toy</code></td><td>ret-001~ret-002</td><td>0 / 1</td><td>0 / 1</td></tr>
+    <tr><td colspan="2"><strong>total</strong></td><td><strong>7 / 9</strong></td><td><strong>8 / 9</strong></td></tr>
+  </table>
+  <p>The misses are inherited, not new: <code>bio-001</code>~<code>bio-002</code> needs
+  idf weighting, and <code>ret-001</code>~<code>ret-002</code> is unreachable by any
+  lexical threshold. One finding, <code>agent-003</code>~<code>agent-004</code>, is
+  <em>not</em> in the ground truth — see <a href="#disputed">the disputed finding</a>.</p>
+
+  <h2>2 · Answer-in-prompt (heuristic)</h2>
+  <p>The gold answer, quoted inside its own prompt. Measured as
+  <strong>containment</strong> — the fraction of the answer's word n-grams that occur
+  in the prompt — which is deliberately <em>asymmetric</em>: it asks “how much of the
+  answer is in the prompt?”, not “how similar are they?”. A one-sentence answer fully
+  quoted inside a thousand-word prompt scores 1.0, where a symmetric Jaccard would
+  score near zero.</p>
+
+  <p><code>expected_output</code> may be a string, a scalar, a doc-id list, or a rubric
+  dict. Searching a serialized JSON blob would never match, so the value is walked and
+  each leaf string checked with its field path recorded. That is what finds
+  <code>agent-004</code>: the leak is in the <code>reference_solution</code> field of a
+  two-key dict, not in the answer as a whole.</p>
+
+  <h3>Calibration</h3>
+  <p>Swept over the 56 committed fixture examples against the 2 planted leaks, counted
+  per example (TP / FP):</p>
+  <table>
+    <tr><th>width</th><th>thr 0.3</th><th>0.4</th><th>0.5 (default)</th><th>0.6</th><th>0.7</th><th>0.8</th></tr>
+    <tr><td>n=1</td><td>2 / 7</td><td>2 / 7</td><td>2 / 4</td><td>2 / 2</td><td>2 / 1</td><td>2 / 1</td></tr>
+    <tr><td><strong>n=2</strong></td><td>2 / 1</td><td>2 / 0</td><td><strong>2 / 0</strong></td><td>2 / 0</td><td>1 / 0</td><td>1 / 0</td></tr>
+    <tr><td>n=3</td><td>1 / 0</td><td>1 / 0</td><td>1 / 0</td><td>1 / 0</td><td>1 / 0</td><td>1 / 0</td></tr>
+  </table>
+  <p><code>n=2</code> is the only width that recovers both planted leaks without a false
+  positive, and the default threshold sits in the middle of a <em>plateau</em> rather
+  than on a knife edge: the whole band [0.4, 0.6] gives the identical answer, because
+  the weakest true positive scores <strong>0.600</strong> and the strongest non-leak
+  <strong>0.333</strong>.</p>
+  <p>The rejected widths fail for opposite reasons, both pinned by tests:</p>
+  <ul>
+    <li><strong><code>n=1</code> cannot tell a quoted answer from a prompt that shares
+    its vocabulary</strong> — which every well-posed question does.
+    <code>agent-011</code>'s answer <code>"return sorted(arr)"</code> scores 0.667
+    against a prompt that merely <em>describes</em> returning a sorted arr;
+    <code>qa-013</code>'s <code>"Pacific Ocean"</code> scores 0.5 because the prompt
+    contains the word <em>ocean</em>.</li>
+    <li><strong><code>n=3</code> loses <code>agent-004</code></strong> (0.25). A
+    paraphrased quotation keeps its bigrams long after its trigrams are gone.</li>
+  </ul>
+  <p>Answers shorter than <code>n</code> are compared at their own width, so the
+  one-token gold answer <code>"Berlin"</code> is found by a unigram match while longer
+  answers keep bigram discipline. Every finding records the width it fired at.</p>
+
+  <h3>The label-vocabulary guard</h3>
+  <p>In a classification dataset the gold answer <em>is</em> a class name, and a prompt
+  that names its own label set (“should the assistant comply or refuse?”) would be
+  flagged on every row. A candidate must be short (≤ 2 tokens), repeated (≥ 3 times),
+  <em>and</em> — the load-bearing condition — the candidate set must cover ≥ 50% of the
+  dataset. Repetition alone is not enough: without the coverage test,
+  <code>qa_toy</code>'s <code>"William Shakespeare"</code> (3 occurrences, 21% coverage)
+  would be dismissed as a class label.</p>
+  <p>On the fixtures the guard fires on <code>safety_toy</code> only, taking
+  <code>{comply, refuse}</code>, and changes no result there. Its value shows on data the
+  fixtures do not contain: on a synthetic sentiment set whose prompts read “Is review #N
+  positive or negative?”, it takes the finding count from <strong>8 of 8 examples to
+  zero</strong>. Nothing is suppressed silently — the chosen vocabulary is printed on the
+  report. Its cost is a true negative: a genuinely leaked class label in a genuine
+  classification dataset goes unreported.</p>
+
+  <h2>3 · Reference n-gram overlap</h2>
+  <p>The standard decontamination signal: flag an evaluation prompt sharing a word
+  n-gram with a reference corpus. Default reference is the <code>train</code> split,
+  default targets <code>dev</code> and <code>test</code>; any external corpus can be
+  supplied instead. <code>n=8</code> — the low end of the published 8–13 band — and the
+  rule is the standard one: <strong>any single shared 8-gram is the flag</strong>, with
+  containment reported as strength.</p>
+
+  <h3>Why n=8 and not n=5</h3>
+  <p>At <code>n=5</code> the same rule fires on shared boilerplate:</p>
+  <table>
+    <tr><th>flagged at n=5</th><th>containment</th><th>why</th></tr>
+    <tr><td>qa-002, agent-006, bio-006, saf-005</td><td>1.000</td><td>genuine verbatim duplicates</td></tr>
+    <tr><td>qa-004</td><td>0.167</td><td>shares “who … the play romeo and juliet”</td></tr>
+    <tr><td>qa-007</td><td>0.167</td><td>shares “what is the capital of”</td></tr>
+    <tr><td>saf-003</td><td>0.125</td><td>shares “chocolate chip cookies at home”</td></tr>
+    <tr><td>agent-004</td><td>0.083</td><td>shares a code fragment with agent-003</td></tr>
+  </table>
+  <p>Four spurious findings, each a shared <em>template</em> rather than a shared item.
+  At <code>n=8</code> only the four verbatim duplicates survive, all at containment
+  1.000. Prompts shorter than <code>n</code> are compared at their own width and the
+  finding says so; without that clamp, an 8-gram check would silently report “no
+  contamination” for exactly the short items most likely to be duplicated verbatim.</p>
+
+  <div class="callout">An honest null result: <strong>on these fixtures this channel
+  finds nothing the exact overlap channel does not.</strong> Its four findings are
+  exactly the four identical cross-split pairs. Every planted overlap is either
+  identical (caught twice) or a paraphrase (invisible to 8-grams, by design). The
+  channel earns its place on datasets with an <em>external</em> reference corpus, where
+  no dedup stage can help — which the fixtures cannot demonstrate. The redundancy is
+  asserted by a test rather than hidden.</div>
 
   <h2>4 · Retrieval contamination</h2>
-  <p>For <code>retrieval</code>-family examples, whether a retrieved document
-  contains a label artifact — the gold answer embedded in a passage, or a
-  document that <em>is</em> the labelled answer — trivializing the retrieval step.</p>
+  <p>Keyed on the presence of <code>metadata.retrieval.docs</code>, not on the task
+  family, so a QA item shipping retrieved context is audited too. Two exact signals.</p>
+  <p><strong>Annotation artifacts in passage text.</strong> A passage carrying
+  <code>[ANSWER: Mars]</code> or <code>ground truth =</code> has had the annotation
+  pipeline leak into the corpus; a retriever can rank by the marker instead of by
+  relevance. The pattern is curated — a label word immediately followed by
+  <code>:</code> or <code>=</code>, the shape of a machine-written annotation rather than
+  of an English sentence. Over <strong>every passage and every prompt in all five
+  fixtures it matches exactly once</strong>, on the planted artifact in
+  <code>ret-003</code>/<code>d5</code>.</p>
+  <p><strong>A gold passage shared across splits.</strong> The same passage text in a
+  training example and a test example — under different <code>doc_id</code>s, which is
+  how it evades id-level checks — means the held-out evidence was never held out.
+  Distractors are <em>not</em> flagged: reusing an irrelevant passage is normal corpus
+  construction, so a cluster counts only when the passage is relevant for at least one
+  example it appears in.</p>
+
+  <div class="callout warn">An earlier draft of <code>docs/LEAKAGE.md</code> proposed
+  flagging “the gold answer string embedded in a passage”. For retrieval data that check
+  is <strong>wrong</strong>: a relevant passage containing the answer is the
+  <em>definition</em> of relevance, so it would fire on every correctly labelled example
+  and discriminate nothing. The prompt-side analogue is real, and check 2 owns it.</div>
+
+  <h2 id="corroboration">Corroboration between independent channels</h2>
+  <p><code>ret-001</code>~<code>ret-002</code> is planted as a cross-split overlap and is
+  <strong>provably unreachable</strong> by check 1: the queries are a deep paraphrase, and
+  Milestone 4 established that a genuine non-duplicate in the same fixture scores strictly
+  higher, so no threshold admits one without the other.</p>
+  <p>The <strong>passage-level</strong> check recovers the same pair anyway, because both
+  examples cite the identical gold passage under different ids. Two independent channels,
+  one defect, one of them blind to it. This is the argument for keeping the channels
+  non-disjoint.</p>
+  <table>
+    <tr><th></th><th>TF-IDF</th><th>Jaccard</th></tr>
+    <tr><td>planted leakage defects recovered <strong>by their own kind</strong></td><td>11 / 12</td><td>10 / 12</td></tr>
+    <tr><td>planted leakage defects recovered <strong>by any channel</strong></td><td><strong>12 / 12</strong></td><td>11 / 12</td></tr>
+  </table>
+
+  <h2>Findings on the fixtures</h2>
+  <table>
+    <tr><th>fixture</th><th>overlap</th><th>answer-in-prompt</th><th>n-gram</th><th>retrieval</th><th>cross-split sources</th><th>examples implicated</th></tr>
+    <tr><td><code>qa_toy</code></td><td>2</td><td>1</td><td>1</td><td>0</td><td>1</td><td>6 / 14</td></tr>
+    <tr><td><code>agent_tasks_toy</code></td><td>3</td><td>1</td><td>1</td><td>0</td><td>0</td><td>6 / 12</td></tr>
+    <tr><td><code>retrieval_toy</code></td><td>0</td><td>0</td><td>0</td><td>2</td><td>1</td><td>3 / 10</td></tr>
+    <tr><td><code>bio_toy</code></td><td>2</td><td>0</td><td>1</td><td>0</td><td>0</td><td>4 / 10</td></tr>
+    <tr><td><code>safety_toy</code></td><td>2</td><td>0</td><td>1</td><td>0</td><td>0</td><td>4 / 10</td></tr>
+  </table>
+  <p><em>examples implicated</em> is smaller than the sum of the findings because the
+  channels overlap by design; one contaminated example is named by several.</p>
+
+  <h3 id="disputed">The disputed finding</h3>
+  <p><code>agent-003</code>~<code>agent-004</code> straddles train/test with an identical
+  reference solution, the prompts differing only by an appended hint.
+  <code>defects.yaml</code> files that pair under <code>leakage: answer_in_prompt</code>,
+  so the dedup layer scores it a false positive — but as <em>cross-split overlap</em> it
+  is arguably a true one. The disagreement is recorded by a test rather than resolved by
+  editing ground truth, and is flagged for human review.</p>
 
   <div class="callout warn">We can only measure overlap against text we are
-  <strong>given</strong>. Contamination against unseen (e.g. private pretraining)
-  corpora is undetectable here — absence of a flag is not proof of no
-  contamination. n-gram checks false-positive on boilerplate; the matched span is
-  always reported for review.</div>
+  <strong>given</strong>. Contamination against unseen (e.g. private pretraining) corpora
+  is undetectable here — <strong>absence of a flag is not evidence of no
+  contamination</strong>. This is a property of the problem, not a gap in the
+  implementation.</div>
+
+  <h2>Known limitations</h2>
+  <p>Each is asserted by a test, so a future improvement cannot silently invalidate this
+  section.</p>
+  <ul>
+    <li><strong>Cross-split overlap inherits every dedup blind spot.</strong> A
+    cross-split paraphrase invisible to the near-duplicate stage is invisible here.</li>
+    <li><strong>Answer-in-prompt is lexical.</strong> It sees a <em>quoted</em> answer and
+    misses an <em>entailed</em> one, and cannot distinguish a leak from a legitimate
+    restatement (“extract the year 2020 from: … in 2020 …”).</li>
+    <li><strong>The label guard trades a false positive for a false negative.</strong> A
+    genuinely leaked class label in a genuine classification dataset is not reported. The
+    guard prints what it ignored.</li>
+    <li><strong>Paraphrased duplicate passages are not detected.</strong>
+    <code>retrieval_toy</code>'s <code>d13</code>/<code>d14</code> state one boiling-point
+    fact two ways. Passage matching is exact after normalization, and no threshold
+    separates those two from unrelated passages without semantics.</li>
+    <li><strong>The artifact marker is a curated list, not a detector.</strong> A corpus
+    that leaks its labels under a convention we did not think of passes clean.</li>
+    <li><strong>Comparison is brute-force.</strong> The blocking step a large corpus would
+    need is deliberately deferred, not claimed.</li>
+  </ul>
 
   <h3>Relevant files</h3>
   <ul class="files">
-    <li>src/eval_dataset_forge/leakage/{train_test_overlap,ngram_overlap,retrieval_overlap,contamination}.py</li>
-    <li>docs/LEAKAGE.md</li>
+    <li>src/eval_dataset_forge/leakage/{__init__,train_test_overlap,answer_in_prompt,ngram_overlap,retrieval_overlap}.py</li>
+    <li>tests/test_leakage.py · docs/LEAKAGE.md</li>
   </ul>
   <h3>Status</h3>
-  <p>Design fixed in <code>docs/LEAKAGE.md</code>; implementation + tests land in
-  Milestone 5.</p>
+  <p>Implemented and tested. <code>python3 -m pytest -q</code> → 378 passed, of which
+  <code>tests/test_leakage.py</code> contributes 111: containment primitives, the
+  calibration sweeps above, the label guard demonstrated on a synthetic classification
+  set, recall against every fixture's <code>defects.yaml</code>, the corpus-wide
+  artifact-marker false-positive check, and regression tests pinning each documented
+  failure mode.</p>
+  <h3>Open questions</h3>
+  <ul>
+    <li>Should <code>agent-003</code>~<code>agent-004</code> be recorded in
+    <code>defects.yaml</code> as a cross-split overlap as well as an answer-in-prompt
+    leak? It is currently counted against both the dedup and the leakage layers as a
+    false positive.</li>
+    <li>Is the label-vocabulary guard's coverage threshold (50%) right, or should the
+    release builder require it to be set explicitly per dataset?</li>
+    <li>The n-gram channel is redundant on the fixtures. Is a small public-safe external
+    reference corpus worth committing so it can be exercised end to end?</li>
+    <li>Should <code>dev</code>/<code>test</code> overlap be reported at a different
+    severity from <code>train</code>/<code>test</code>, rather than sharing one kind?</li>
+  </ul>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

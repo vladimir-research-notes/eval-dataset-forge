@@ -51,11 +51,36 @@
   release, the generated dataset card, and the bootstrap / ranking-stability demo
   — with any small-N instability warnings.</p>
 
+  <h2>Measured so far</h2>
+  <p>Stages land one milestone at a time; each contributes its numbers as it is
+  implemented. All of the following are reproducible today, offline, from the
+  committed fixtures. Recall is scored against each fixture's machine-readable
+  <code>defects.yaml</code> ground truth.</p>
+  <table>
+    <tr><th>stage</th><th>check</th><th>certainty</th><th>recall</th><th>false positives</th></tr>
+    <tr><td rowspan="3"><a href="deduplication.html">dedup</a> <span class="status done">M4</span></td><td>exact</td><td>exact</td><td>4 / 4</td><td>0</td></tr>
+    <tr><td>near (TF-IDF)</td><td>heuristic</td><td>4 / 5</td><td>2 pairs</td></tr>
+    <tr><td>duplicate sources</td><td>exact</td><td>2 / 2</td><td>0</td></tr>
+    <tr><td rowspan="4"><a href="leakage.html">leakage</a> <span class="status done">M5</span></td><td>cross-split overlap (TF-IDF)</td><td>inherited</td><td>8 / 9</td><td>1 pair, disputed</td></tr>
+    <tr><td>answer-in-prompt</td><td>heuristic</td><td>2 / 2</td><td>0</td></tr>
+    <tr><td>reference n-gram overlap</td><td>exact given n=8</td><td>n/a (none planted)</td><td>0</td></tr>
+    <tr><td>retrieval contamination</td><td>exact</td><td>1 / 1</td><td>0</td></tr>
+  </table>
+  <p>Across all four leakage channels, <strong>12 of 12</strong> planted leakage defects
+  are recovered — including <code>ret-001</code>~<code>ret-002</code>, which the dedup
+  ladder is provably blind to and which the passage-level check finds anyway. Per-kind,
+  recall is 11 / 12. Full analysis in <code>docs/LEAKAGE.md</code> and
+  <code>docs/DEDUPLICATION.md</code>.</p>
+
   <h2>Reproduce</h2>
-<pre><code>PYTHONPATH=src python3 -m eval_dataset_forge smoke --out results/reports/smoke_audit.md</code></pre>
+<pre><code>python3 -m pytest -q tests/test_dedup.py      # 99 tests
+python3 -m pytest -q tests/test_leakage.py    # 111 tests
+
+PYTHONPATH=src python3 -m eval_dataset_forge smoke --out results/reports/smoke_audit.md  # Milestone 12</code></pre>
 
   <h3>Status</h3>
-  <p>Awaiting Milestone 12. See <code>docs/RESULTS.md</code>.</p>
+  <p>Per-stage numbers land as each stage does; the end-to-end smoke audit that fills
+  the rest of this page awaits Milestone 12. See <code>docs/RESULTS.md</code>.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

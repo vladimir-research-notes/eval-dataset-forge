@@ -69,6 +69,66 @@ Reproduce:
 python3 -m pytest -q tests/test_dedup.py      # 99 tests
 ```
 
+### Leakage & contamination (Milestone 5)
+
+Scored against the `leakage` ground truth in each fixture's `defects.yaml`. Full
+method, calibration sweeps, and failure-mode analysis: [`LEAKAGE.md`](LEAKAGE.md).
+
+Four checks, each emitting one `LeakageKind`. Unlike the dedup ladder they are
+**not** disjoint — a defect can and should light up several channels.
+
+| check | certainty | recall | false positives |
+|-------|-----------|--------|-----------------|
+| cross-split overlap (TF-IDF) | inherited from dedup | **8 / 9** planted pairs | 1 pair, disputed — see below |
+| cross-split overlap (Jaccard fallback) | inherited from dedup | 7 / 9 | 1 pair |
+| answer-in-prompt | heuristic | **2 / 2** planted leaks | 0 |
+| reference n-gram overlap | exact given n=8 | n/a (none planted) | 0 |
+| retrieval contamination | exact | **1 / 1** planted artifact | 0 |
+| cross-split source records | exact | **2 / 2** planted | 0 |
+
+Per-fixture findings at default settings:
+
+| fixture | overlap | answer-in-prompt | n-gram | retrieval | cross-split sources | examples implicated |
+|---------|---------|------------------|--------|-----------|---------------------|---------------------|
+| `qa_toy` | 2 | 1 | 1 | 0 | 1 | 6 / 14 |
+| `agent_tasks_toy` | 3 | 1 | 1 | 0 | 0 | 6 / 12 |
+| `retrieval_toy` | 0 | 0 | 0 | 2 | 1 | 3 / 10 |
+| `bio_toy` | 2 | 0 | 1 | 0 | 0 | 4 / 10 |
+| `safety_toy` | 2 | 0 | 1 | 0 | 0 | 4 / 10 |
+
+Three results are worth stating precisely.
+
+**An independent channel recovers what the dedup ladder cannot.** `ret-001`/`ret-002`
+is planted as a cross-split overlap and is *provably* unreachable by any lexical
+prompt threshold (Milestone 4 measured a genuine non-duplicate in the same fixture
+scoring strictly higher). The passage-level retrieval check finds the same pair
+anyway: both examples cite the identical gold passage under different `doc_id`s. So:
+
+| | TF-IDF | Jaccard |
+|---|--------|---------|
+| planted leakage defects recovered **by their own kind** | 11 / 12 | 10 / 12 |
+| planted leakage defects recovered **by any channel** | **12 / 12** | 11 / 12 |
+
+**The n-gram channel is redundant on these fixtures — an honest null result.** Its
+four findings (`qa-002`, `agent-006`, `bio-006`, `saf-005`) are exactly the four
+identical cross-split pairs the exact dedup stage already reports. Every planted
+overlap is either identical (caught twice) or a paraphrase (invisible to 8-grams, by
+design). The channel exists for *external* reference corpora, which the fixtures
+cannot demonstrate; the redundancy is asserted by a test rather than hidden.
+
+**One finding contradicts the ground truth.** `agent-003`/`agent-004` straddles
+train/test with an identical reference solution, differing only by an appended hint.
+`defects.yaml` files that pair under `answer_in_prompt`, so dedup scores it a false
+positive — but as cross-split overlap it is arguably a true one. Left unresolved and
+[flagged for human review](review_notes/05-leakage-human-review.md) rather than
+settled by editing ground truth.
+
+Reproduce:
+
+```bash
+python3 -m pytest -q tests/test_leakage.py    # 111 tests
+```
+
 ## What will be reported here
 
 - Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII

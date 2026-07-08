@@ -60,6 +60,14 @@
       higher — and same-template questions sharing a gold answer are a standing false
       positive. Thresholds are tuned in-sample on 56 synthetic examples. Exact and
       normalized dedup, by contrast, have no false positives.</li>
+    <li><strong>Leakage checks are bounded by the text they are given.</strong>
+      <a href="leakage.html">Cross-split overlap</a> inherits every near-duplicate blind
+      spot; answer-in-prompt detection is lexical, so it sees a <em>quoted</em> answer
+      and misses an <em>entailed</em> one, and cannot tell a leak from a legitimate
+      restatement; the retrieval artifact marker is a curated list of annotation
+      conventions, not a general detector; and paraphrased duplicate passages are not
+      detected at all. The label-vocabulary guard deliberately trades a false positive
+      for a false negative, and prints what it ignored.</li>
   </ul>
 
   <h2>Non-goals</h2>

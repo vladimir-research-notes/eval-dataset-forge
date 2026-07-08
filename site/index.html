@@ -29,7 +29,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status scaffold">Milestone 3 — validation &amp; redaction</span></p>
+  <p><span class="status scaffold">Milestone 5 — leakage &amp; contamination</span></p>
   <h1>Make evaluation datasets trustworthy</h1>
   <p class="lede">A benchmark that reports one accuracy number hides most of what
   decides whether that number means anything. eval-dataset-forge turns
@@ -84,11 +84,16 @@
   recall against known defects; Milestone 3 landed the first pipeline stage —
   <a href="validation.html">validation &amp; redaction</a> (schema, ID uniqueness,
   PII/secret detection, and typed-placeholder redaction), wiring the
-  <code>evalforge validate</code> command; and Milestone 4 added the second —
+  <code>evalforge validate</code> command; Milestone 4 added the second —
   <a href="deduplication.html">deduplication</a>, a three-stage exact / normalized /
   heuristic ladder whose near-duplicate thresholds are calibrated against the
   fixtures' planted paraphrases and whose two failure modes are pinned by regression
-  tests. The remaining audit subsystems follow milestone by milestone — see
+  tests; and Milestone 5 added the third —
+  <a href="leakage.html">leakage &amp; contamination</a>, four deliberately
+  non-disjoint channels (cross-split overlap, answer-in-prompt containment, reference
+  n-gram overlap, retrieval contamination) that between them recover every planted
+  leakage defect, including one the deduplication ladder is provably blind to. The
+  remaining audit subsystems follow milestone by milestone — see
   <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
   contract.</p>
 
