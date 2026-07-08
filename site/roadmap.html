@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Roadmap &amp; research path</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html" class="active">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Roadmap &amp; research path</h1>
+  <p class="lede">Where the project can go as a research contribution. These are
+  open questions, not solved problems.</p>
+
+  <h2>Integration contracts (Milestone 13)</h2>
+  <p>eval-dataset-forge is designed to be a reusable dataset-quality layer. It
+  will define (without depending on) integration contracts for:</p>
+  <ul>
+    <li><strong>code-agent-runtime</strong> — audit agent-task benchmarks before they gate a run.</li>
+    <li><strong>BioAgentBench</strong> — audit synthetic biomedical evidence tasks.</li>
+    <li><strong>LLM regression / observability</strong> — flag when a regression suite is too small or leaky to rank models.</li>
+    <li><strong>scientific-claim-verifier</strong> — audit claim/evidence datasets for label conflicts and leakage.</li>
+    <li><strong>agent-control-bench</strong> — audit control/safety task sets.</li>
+  </ul>
+
+  <h2>Research directions (docs/PAPER_PATH.md)</h2>
+  <ul>
+    <li>A standardized <strong>reliability profile</strong> for benchmarks and its
+      distribution across public datasets.</li>
+    <li><strong>Leakage → ranking-change</strong> experiments: how much reported
+      progress is a dataset artifact?</li>
+    <li>Difficulty calibration against real response data (IRT-style), validating
+      the cheap proxy.</li>
+    <li>Ranking stability as a first-class release statistic (a required-N stopping
+      rule).</li>
+    <li>Optional, clearly-bounded <strong>semantic</strong> dedup/contamination
+      mode, with a cost/coverage study vs. the lexical methods.</li>
+  </ul>
+
+  <div class="callout">What would make this credible: reproducible pipelines and
+  released audit artifacts for every claim, ablations showing each metric adds
+  signal, and honest false-positive/negative reporting. No leaderboards, no
+  "clean" certifications.</div>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

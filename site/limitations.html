@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Limitations &amp; non-goals</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html" class="active">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Limitations &amp; non-goals</h1>
+  <p class="lede">Being explicit about what this tool does not do is part of its
+  value.</p>
+
+  <h2>Limitations</h2>
+  <ul>
+    <li><strong>Fixtures are synthetic.</strong> They demonstrate that the audits
+      fire; they are not evidence about any real benchmark's quality.</li>
+    <li><strong>Most checks are heuristic.</strong> Near-duplicate, answer-leakage,
+      n-gram, difficulty, and ambiguity checks each have documented
+      false-positive/negative modes.</li>
+    <li><strong>Contamination we cannot see.</strong> Overlap is measured only
+      against provided reference text; private pretraining contamination is
+      undetectable — absence of a flag is not proof.</li>
+    <li><strong>Statistics quantify sampling noise only</strong>, not whether the
+      examples are representative, and use simple percentile/resampling methods.</li>
+    <li><strong>Small datasets.</strong> Stratification and ranking stability are
+      inherently limited at small N; the tool reports achieved distributions and
+      instability warnings rather than pretending otherwise.</li>
+  </ul>
+
+  <h2>Non-goals</h2>
+  <ul>
+    <li>Not a certifier of universal benchmark quality.</li>
+    <li>Not a semantic / embedding dedup service (out of scope for the offline build).</li>
+    <li>Not a medical, legal, or security authority.</li>
+    <li>Not a data-labeling platform or annotation UI (possible future direction).</li>
+    <li>Not a replacement for human judgement on ambiguous labels.</li>
+  </ul>
+
+  <div class="callout">Full detail in <code>docs/LIMITATIONS.md</code> and
+  <code>docs/SAFETY.md</code>. Each heuristic's failure modes are also documented
+  in its own methodology doc.</div>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

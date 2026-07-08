@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Dataset schema</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html" class="active">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status pending">defined · implemented in Milestone 1</span></p>
+  <h1>Dataset schema</h1>
+  <p class="lede">Typed, validated formats for examples, manifests, audits, and
+  releases. Malformed data fails loudly at load time instead of silently
+  corrupting an audit.</p>
+
+  <h2>Why typed schemas</h2>
+  <p>Schema validity is audit dimension #1. Every downstream check assumes it is
+  operating on well-formed examples. The schemas are pydantic v2 models
+  (<code>src/eval_dataset_forge/schemas.py</code>); <code>SCHEMA_VERSION</code>
+  is bumped on any breaking change to the on-disk format.</p>
+
+  <h2>DatasetExample</h2>
+  <table>
+    <tr><th>field</th><th>required</th><th>notes</th></tr>
+    <tr><td><code>example_id</code></td><td>yes</td><td>stable, unique within a dataset</td></tr>
+    <tr><td><code>source_id</code></td><td>yes</td><td>originating record/file (provenance)</td></tr>
+    <tr><td><code>task_family</code></td><td>yes</td><td>qa / agent_task / retrieval / bio / safety / …</td></tr>
+    <tr><td><code>input</code></td><td>yes</td><td>prompt / query / task statement</td></tr>
+    <tr><td><code>expected_output</code></td><td>yes</td><td>gold answer / label / relevance judgement</td></tr>
+    <tr><td><code>metadata</code></td><td>no</td><td>free-form; e.g. retrieval docs, source url</td></tr>
+    <tr><td><code>labels</code></td><td>no</td><td>structured; may hold multiple annotator labels</td></tr>
+    <tr><td><code>difficulty_tags</code></td><td>no</td><td>easy / hard / ambiguous …</td></tr>
+    <tr><td><code>split</code></td><td>no</td><td>train / dev / test / unassigned</td></tr>
+    <tr><td><code>provenance</code></td><td>no</td><td>synthetic / adapted / …</td></tr>
+    <tr><td><code>created_at</code></td><td>no</td><td>ISO-8601</td></tr>
+    <tr><td><code>version</code></td><td>no</td><td>example content/schema version</td></tr>
+  </table>
+
+  <h2>Release bundle</h2>
+<pre><code>datasets/releases/&lt;dataset_id&gt;_v&lt;version&gt;/
+  examples.jsonl        the data (validated)
+  manifest.json         DatasetManifest: hashes, splits, counts, audit summary
+  audit.json / audit.md AuditResult + human-readable report
+  dataset_card.md       purpose, construction, known issues, non-goals
+  splits/{train,dev,test}.jsonl
+  REPRODUCE.md          exact rebuild commands</code></pre>
+
+  <h2>Finding &amp; result types</h2>
+  <p><code>AuditResult</code> aggregates <code>DeduplicationFinding</code>,
+  <code>LeakageFinding</code>, <code>LabelAuditFinding</code>, PII flags,
+  <code>DifficultyScore</code>s, split statistics, and prioritized
+  recommendations. <code>SplitSpec</code>, <code>BootstrapResult</code>, and
+  <code>DatasetCard</code> complete the model set.</p>
+
+  <h3>Relevant files</h3>
+  <ul class="files">
+    <li>src/eval_dataset_forge/schemas.py</li>
+    <li>docs/DATASET_SCHEMA.md</li>
+  </ul>
+  <h3>Status</h3>
+  <p>Formats specified in <code>docs/DATASET_SCHEMA.md</code>. pydantic models and
+  round-trip tests land in Milestone 1.</p>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Milestones</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html" class="active">Milestones</a>
+  </nav>
+</header>
+<main>
+  <h1>Milestones</h1>
+  <p class="lede">The repository is built one milestone per Claude Code run via
+  <code>scripts/run_all_milestones_with_claude.sh</code>. Each milestone is a
+  coherent, committed unit; the runner verifies a new commit, a clean tree, and
+  passing tests before the next. Each milestone updates this page's status.</p>
+
+  <div class="callout">Run: <code>./scripts/run_all_milestones_with_claude.sh 1 15</code>
+  · permissions preconfigured in <code>.claude/settings.json</code> (acceptEdits +
+  allow/deny list). The runner never pushes; <code>git push</code> is denied by
+  policy.</div>
+
+  <h2>Plan</h2>
+  <table>
+    <tr><th>#</th><th>milestone</th><th>what it delivers</th><th>status</th></tr>
+    <tr><td>0</td><td>Scaffold &amp; project contract</td><td>repo tree, package + CLI stub, PLAN/CLAUDE, website, env check, milestone runner, first tests</td><td><span class="status done">done</span></td></tr>
+    <tr><td>1</td><td>Core schemas</td><td>pydantic models for examples, manifest, release, audit result, findings, split spec, difficulty, bootstrap, card + tests</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>2</td><td>Fixture datasets</td><td>qa / agent / retrieval / bio / safety toy sets with deliberate defects; validation script</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>6</td><td>Label audit</td><td>missing / conflicting / ambiguous / format checks; adjudication queue export</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>7</td><td>Split builder</td><td>random, stratified (family/difficulty), source-grouped, adversarial</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>8</td><td>Difficulty calibration</td><td>transparent heuristics + difficulty distribution reports</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>9</td><td>Statistics &amp; ranking stability</td><td>bootstrap CIs, paired comparison, ranking stability, small-N warnings</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>10</td><td>Release builder</td><td>dataset JSONL, manifest, split files, audit summary, hashes, versioned release dir</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>11</td><td>Dataset card generator</td><td>Markdown + optional HTML cards</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>12</td><td>Smoke audit &amp; results</td><td>full offline audit over all fixtures → results/ + docs/RESULTS.md</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>13</td><td>Integration contracts</td><td>documented contracts for code-agent-runtime, BioAgentBench, LLM regression, scientific-claim-verifier, agent-control-bench</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>14</td><td>Final portfolio report</td><td>README + docs to portfolio quality</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>15</td><td>Final cleanup</td><td>tests, lint, fixture validation, smoke audit, release build, report gen, hygiene scan, clean tree</td><td><span class="status pending">planned</span></td></tr>
+  </table>
+
+  <h2>Per-milestone detail</h2>
+
+  <h3>Milestone 1 — Core schemas</h3>
+  <p>Define the typed data contracts (pydantic v2) that every later stage relies
+  on: <code>DatasetExample</code>, <code>DatasetManifest</code>,
+  <code>DatasetRelease</code>, <code>AuditResult</code>, the finding types,
+  <code>SplitSpec</code>, <code>DifficultyScore</code>,
+  <code>BootstrapResult</code>, and <code>DatasetCard</code>. Round-trip
+  (load→dump) tests lock the on-disk format.</p>
+
+  <h3>Milestone 2 — Fixture datasets</h3>
+  <p>Author the five small, synthetic toy datasets. Defects are planted on
+  purpose — duplicates, paraphrases, leaked answers, label conflicts, difficulty
+  variation — so the audits have something real to find. No real personal or
+  clinical data.</p>
+
+  <h3>Milestone 3 — Validation &amp; redaction</h3>
+  <p>Turn the schema into an enforced gate: required fields, type checks, ID
+  uniqueness, metadata consistency. Add PII-like detection (emails, tokens,
+  key-shaped strings) and deterministic redaction, plus a safe-data check. Wires
+  the <code>validate</code> CLI.</p>
+
+  <h3>Milestone 4 — Deduplication</h3>
+  <p>Exact (hashing), normalized-text, and heuristic near-duplicate detection
+  (token n-gram Jaccard; optional TF-IDF cosine with a pure-Python fallback).
+  Tests use fixtures with known duplicate clusters.</p>
+
+  <h3>Milestone 5 — Leakage checks</h3>
+  <p>Train/test overlap, answer-in-prompt containment, high n-gram overlap against
+  a supplied reference, and retrieval-document contamination — each producing a
+  <code>LeakageFinding</code> with evidence.</p>
+
+  <h3>Milestone 6 — Label audit</h3>
+  <p>Detect missing, conflicting, ambiguous, and inconsistently formatted labels;
+  summarize inter-annotator disagreement; export a deterministic adjudication
+  queue. Nothing is auto-corrected.</p>
+
+  <h3>Milestone 7 — Split builder</h3>
+  <p>Construct splits with a recorded, reproducible <code>SplitSpec</code>:
+  random, stratified by family/difficulty, source-grouped, and the adversarial
+  (near-dup-aware) strategy. Re-runs leakage checks across the result.</p>
+
+  <h3>Milestone 8 — Difficulty calibration</h3>
+  <p>Compute the transparent difficulty proxy from documented surface signals,
+  bucket it, and report the per-dataset and per-split difficulty distribution.</p>
+
+  <h3>Milestone 9 — Statistics &amp; ranking stability</h3>
+  <p>Bootstrap confidence intervals, paired system comparison, ranking stability
+  under resampling and example removal, and explicit small-N / instability
+  warnings. Demonstrated on synthetic fixture system scores.</p>
+
+  <h3>Milestone 10 — Release builder</h3>
+  <p>Package a versioned release directory: validated examples, manifest with
+  content hashes, split files, audit summary, and a <code>REPRODUCE.md</code>.</p>
+
+  <h3>Milestone 11 — Dataset card generator</h3>
+  <p>Render a dataset card (Markdown, optional HTML) directly from the audit and
+  manifest, so its "known issues" always match what the pipeline found.</p>
+
+  <h3>Milestone 12 — Smoke audit &amp; results</h3>
+  <p>Run the whole pipeline over every fixture, fully offline, and write the
+  outcome to <code>results/</code> and <code>docs/RESULTS.md</code>. This is the
+  end-to-end proof that duplicates, leakage, and label conflicts are detected.</p>
+
+  <h3>Milestone 13 — Integration contracts</h3>
+  <p>Document how downstream projects consume audited releases, without taking a
+  dependency on any of them. See the <a href="roadmap.html">Roadmap</a>.</p>
+
+  <h3>Milestone 14 — Final portfolio report</h3>
+  <p>Bring README and docs to portfolio quality: problem, architecture, example
+  audit, detected issues, dataset-card example, reproduction commands,
+  limitations, and the research path.</p>
+
+  <h3>Milestone 15 — Final cleanup</h3>
+  <p>Run the full gate — tests, lint, fixture validation, smoke audit, release
+  build, report generation — and a hygiene scan (no secrets, no private data, no
+  large files, no caches, no paid-API output). Verify a clean tree. Nothing is
+  pushed.</p>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

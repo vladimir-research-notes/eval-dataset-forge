@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html" class="active">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status scaffold">Milestone 0 — scaffold</span></p>
+  <h1>Make evaluation datasets trustworthy</h1>
+  <p class="lede">A benchmark that reports one accuracy number hides most of what
+  decides whether that number means anything. eval-dataset-forge turns
+  duplication, leakage, label noise, split artifacts, difficulty imbalance, and
+  unstable rankings into measured, reported properties of a dataset.</p>
+
+  <h2>The problem</h2>
+  <p>Two systems can be separated by a gap that vanishes under resampling. A
+  "hard" test set can be trivially solved because the answer leaks into the
+  prompt. A five-point gain can be an artifact of forty near-duplicate examples
+  clustered in the test split. These are common, documented failure modes — and
+  they are invisible in the JSONL file itself.</p>
+
+  <h2>The idea</h2>
+  <p>A benchmark dataset should not be a bare file. A trustworthy release is a
+  <strong>dataset + evidence bundle</strong>:</p>
+  <div class="grid">
+    <div class="card"><h3>1. Schema validation</h3><p>Typed fields, ID uniqueness, metadata consistency.</p></div>
+    <div class="card"><h3>2. Deduplication</h3><p>Exact, normalized, and near-duplicate detection.</p></div>
+    <div class="card"><h3>3. Leakage checks</h3><p>Train/test overlap, answer-in-prompt, n-gram &amp; retrieval contamination.</p></div>
+    <div class="card"><h3>4. Label audit</h3><p>Missing, conflicting, ambiguous, and inconsistent labels.</p></div>
+    <div class="card"><h3>5. Difficulty calibration</h3><p>Transparent, model-free difficulty proxy + distribution.</p></div>
+    <div class="card"><h3>6. Split rationale</h3><p>Random, stratified, source-grouped, adversarial, temporal.</p></div>
+    <div class="card"><h3>7. Statistical uncertainty</h3><p>Bootstrap CIs, paired comparison, ranking stability.</p></div>
+    <div class="card"><h3>8. Dataset card + manifest</h3><p>Purpose, known issues, non-goals, hashes, reproduce commands.</p></div>
+  </div>
+
+  <h2>Architecture</h2>
+<pre><code>raw examples → validate → dedup → leakage → label-audit → difficulty
+             → splits → statistics → report → versioned release</code></pre>
+  <p>Each stage is a separable, independently tested module. The pipeline is
+  deterministic given a fixed input and seed, runs fully offline, and needs no
+  GPU and no paid API.</p>
+
+  <h2>Design constraints</h2>
+  <ul>
+    <li>CPU-first; runs on a general instance (e.g. <code>m5.2xlarge</code>).</li>
+    <li>Fully offline by default; no paid API anywhere in this version.</li>
+    <li>Small, honest dependency set (<code>pydantic</code>, <code>numpy</code>,
+      <code>pyyaml</code>) with pure-Python fallbacks for optional accelerators.</li>
+    <li>Privacy-safe synthetic fixtures; redaction + PII-like detection built in.</li>
+    <li>Every heuristic documents its failure modes.</li>
+  </ul>
+
+  <h2>Status</h2>
+  <p>The scaffold, plan, CLI, website, environment check, milestone runner, and
+  CPU-only test suite are in place. The audit subsystems land milestone by
+  milestone — see <a href="milestones.html">Milestones</a> and the
+  <code>docs/PLAN.md</code> build contract.</p>
+
+  <div class="callout">This is a benchmark-quality instrument, not a certifier of
+  universal benchmark quality and not a medical, legal, or security authority.
+  See <a href="limitations.html">Limitations</a>.</div>
+</main>
+<footer class="site">
+  eval-dataset-forge · MIT · CPU-only · offline · no paid API
+</footer>
+</body>
+</html>

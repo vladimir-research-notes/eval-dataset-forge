@@ -1,0 +1,79 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eval-dataset-forge"
+version = "0.0.0"
+description = "A CPU-first framework for constructing, auditing, versioning, and stress-testing evaluation datasets for LLM apps, agents, and retrieval systems."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [{ name = "eval-dataset-forge contributors" }]
+keywords = [
+  "evaluation",
+  "benchmarks",
+  "datasets",
+  "data-quality",
+  "deduplication",
+  "contamination",
+  "leakage",
+  "reproducibility",
+  "llm-eval",
+]
+classifiers = [
+  "Development Status :: 2 - Pre-Alpha",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Scientific/Engineering",
+  "Topic :: Software Development :: Testing",
+]
+# Core runtime keeps a deliberately small, CPU-only dependency set so audits run
+# fully offline on a general instance (e.g. m5.2xlarge). pydantic gives real
+# schema validation (audit dimension #1); numpy backs the bootstrap statistics;
+# pyyaml handles YAML dataset/config formats.
+dependencies = [
+  "pydantic>=2.5",
+  "numpy>=1.24",
+  "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+# Optional accelerators. The core audit degrades gracefully to pure-Python
+# implementations when these are absent (documented in docs/DEDUPLICATION.md).
+full = [
+  "pandas>=2.0",
+  "scikit-learn>=1.3",
+]
+dev = [
+  "pytest>=7.0",
+  "ruff>=0.4",
+]
+
+[project.urls]
+Documentation = "https://github.com/example/eval-dataset-forge"
+Source = "https://github.com/example/eval-dataset-forge"
+
+[project.scripts]
+evalforge = "eval_dataset_forge.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "W"]

@@ -1,0 +1,74 @@
+# Local Claude Code overrides (never commit personal/local settings).
+# NOTE: .claude/settings.json IS committed on purpose — it is the shared,
+# non-secret permission allowlist that lets the milestone runner work without
+# prompts. Only the personal local override is ignored.
+.claude/settings.local.json
+
+# Python virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Python caches and bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.cache/
+
+# Build / packaging artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Coverage / test artifacts
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# Node (only static HTML is committed under site/)
+node_modules/
+
+# Secrets and credentials (never commit)
+.env
+.env.*
+*.key
+*.pem
+secrets.*
+
+# Model weights / large generated artifacts
+*.bin
+*.pt
+*.onnx
+*.gguf
+*.safetensors
+*.h5
+*.ckpt
+
+# Optional-adapter response caches (never commit cached API responses)
+.evalforge_cache/
+**/api_cache/
+
+# Generated audit/report/release artifacts are reproducible from fixtures.
+# Committed fixtures and example releases are whitelisted explicitly below.
+results/audits/*
+results/reports/*
+results/processed/*
+!results/audits/.gitkeep
+!results/reports/.gitkeep
+!results/processed/.gitkeep
+
+# Logs
+logs/
+*.log
+*.pid
+
+# OS / editor cruft
+.DS_Store
+*.swp
+*~

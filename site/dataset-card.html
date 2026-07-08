@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Example dataset card</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html" class="active">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status pending">generated in Milestone 11</span></p>
+  <h1>Example dataset card</h1>
+  <p class="lede">Every release ships a dataset card: what the data is for, how it
+  was built, what is known to be wrong with it, and what it must not be used for.
+  Below is the shape of a generated card (illustrative — the real one is produced
+  from an actual audit).</p>
+
+<pre><code># Dataset card — qa_toy v0.1
+
+## Purpose
+Synthetic QA benchmark fixture used to exercise the audit pipeline.
+
+## Construction
+Hand-authored examples with deliberately planted defects (duplicates,
+paraphrases, mislabeled answers, ambiguous questions, train/test overlap).
+
+## Schema
+DatasetExample (see docs/DATASET_SCHEMA.md). SCHEMA_VERSION 0.1.0.
+
+## Splits
+train N · dev N · test N — strategy: adversarial (near-dup aware), seed 7.
+
+## Known issues (from the audit)
+- exact duplicates: k
+- near-duplicates: k (Jaccard ≥ 0.8)
+- leakage flags: k (answer-in-prompt, train/test overlap)
+- label warnings: k (conflicting, ambiguous)
+- PII flags: 0
+
+## Difficulty distribution
+easy N · medium N · hard N
+
+## Recommended use
+Testing dataset-audit tooling. NOT a measure of real QA capability.
+
+## Non-goals
+Not a certification of quality. Not medical/legal/security guidance.
+</code></pre>
+
+  <div class="callout">The card is generated from the <code>AuditResult</code> and
+  <code>DatasetManifest</code>, so its "known issues" section is always consistent
+  with what the pipeline actually found — no hand-maintained claims.</div>
+
+  <h3>Relevant files</h3>
+  <ul class="files">
+    <li>src/eval_dataset_forge/reports/{dataset_card,markdown,html}.py</li>
+  </ul>
+  <h3>Status</h3>
+  <p>Card generator lands in Milestone 11 (<code>dataset-card</code> CLI); a real
+  generated card is committed with the demo release.</p>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

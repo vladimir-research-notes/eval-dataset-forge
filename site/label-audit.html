@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Label audit &amp; adjudication</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html" class="active">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status pending">implemented in Milestone 6</span></p>
+  <h1>Label audit &amp; adjudication</h1>
+  <p class="lede">Label noise caps any measurable accuracy and biases system
+  comparisons. The audit surfaces defects and queues ambiguous cases for a human;
+  it never rewrites a label.</p>
+
+  <h2>Checks</h2>
+  <table>
+    <tr><th>check</th><th>fires when</th><th>type</th></tr>
+    <tr><td>missing</td><td>required label / expected output empty</td><td>exact</td></tr>
+    <tr><td>conflicting</td><td>annotators disagree, or identical inputs → different outputs</td><td>exact</td></tr>
+    <tr><td>ambiguous</td><td>under-specified gold answer / <code>ambiguous</code> tag</td><td>heuristic</td></tr>
+    <tr><td>inconsistent format</td><td>mixed label shapes within a task family</td><td>heuristic</td></tr>
+    <tr><td>needs adjudication</td><td>any of the above requiring a human decision</td><td>routing</td></tr>
+  </table>
+
+  <h2>Inter-annotator disagreement</h2>
+  <p>When examples carry multiple annotator labels, we report simple, hard-to-
+  misread quantities: raw agreement rate and per-example disagreement flags.
+  Agreement coefficients (kappa) are a candidate future addition.</p>
+
+  <h2>Adjudication queue</h2>
+  <p>Flagged examples are exported to a deterministic, diff-friendly
+  <code>adjudication_queue.jsonl</code> with the reason and conflicting values,
+  ready for a human — or a future, disabled-by-default LLM-assisted adjudicator.</p>
+
+  <div class="callout warn">Ambiguity detection is heuristic: it both misses
+  subtle ambiguity and over-flags terse-but-correct answers. Every flag is
+  advisory; semantic conflict detection is out of scope offline.</div>
+
+  <h3>Relevant files</h3>
+  <ul class="files">
+    <li>src/eval_dataset_forge/labels/{audit,disagreement,adjudication}.py</li>
+    <li>docs/LABEL_AUDIT.md</li>
+  </ul>
+  <h3>Status</h3>
+  <p>Design fixed in <code>docs/LABEL_AUDIT.md</code>; implementation lands in
+  Milestone 6.</p>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

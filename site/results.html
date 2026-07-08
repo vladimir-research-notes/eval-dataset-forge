@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Results</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html" class="active">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status pending">populated in Milestone 12</span></p>
+  <h1>Results</h1>
+  <p class="lede">The smoke audit runs the entire pipeline over every fixture,
+  fully offline. Because the fixtures are hand-authored with deliberate defects,
+  the audit's job is to rediscover the planted defects — that is the
+  demonstration that the checks work.</p>
+
+  <h2>Expected findings per fixture</h2>
+  <table>
+    <tr><th>fixture</th><th>planted defects the audit should surface</th></tr>
+    <tr><td>qa_toy</td><td>duplicate + paraphrased questions, mislabeled answers, ambiguous questions, train/test overlap</td></tr>
+    <tr><td>agent_tasks_toy</td><td>near-duplicate tasks, leaked solutions, ambiguous scoring</td></tr>
+    <tr><td>retrieval_toy</td><td>duplicated docs, query–document leakage, incomplete relevance labels</td></tr>
+    <tr><td>bio_toy</td><td>entity-label conflicts, evidence–label mismatches</td></tr>
+    <tr><td>safety_toy</td><td>over-/under-refusal and ambiguous-boundary label conflicts</td></tr>
+  </table>
+
+  <p>Once Milestone 12 runs, this page reports the actual per-fixture counts
+  (duplicates, leakage, label warnings, PII), difficulty distributions, the built
+  release, the generated dataset card, and the bootstrap / ranking-stability demo
+  — with any small-N instability warnings.</p>
+
+  <h2>Reproduce</h2>
+<pre><code>PYTHONPATH=src python3 -m eval_dataset_forge smoke --out results/reports/smoke_audit.md</code></pre>
+
+  <h3>Status</h3>
+  <p>Awaiting Milestone 12. See <code>docs/RESULTS.md</code>.</p>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

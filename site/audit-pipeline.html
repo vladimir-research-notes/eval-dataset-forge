@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — The audit pipeline</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="audit-pipeline.html" class="active">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status pending">assembled in Milestone 12</span></p>
+  <h1>The audit pipeline</h1>
+  <p class="lede">A linear sequence of separable, independently tested stages.
+  Validated examples in; typed findings, distribution summaries, and prioritized
+  recommendations out.</p>
+
+  <h2>Stages</h2>
+<pre><code>load → validate → dedup → leakage → label-audit → difficulty
+     → splits → statistics → report</code></pre>
+  <table>
+    <tr><th>stage</th><th>what it checks</th><th>exact / heuristic</th></tr>
+    <tr><td>validate</td><td>schema, ID uniqueness, PII, quality</td><td>exact</td></tr>
+    <tr><td>dedup</td><td>exact, normalized, near-duplicate</td><td>exact + heuristic</td></tr>
+    <tr><td>leakage</td><td>train/test overlap, answer-in-prompt, n-gram, retrieval</td><td>heuristic</td></tr>
+    <tr><td>label-audit</td><td>missing, conflicting, ambiguous, format</td><td>heuristic + exact</td></tr>
+    <tr><td>difficulty</td><td>transparent heuristic score + buckets</td><td>heuristic</td></tr>
+    <tr><td>splits</td><td>sizes, distributions, cross-split leakage</td><td>exact</td></tr>
+    <tr><td>statistics</td><td>bootstrap CIs, paired comparison, ranking stability</td><td>resampling</td></tr>
+  </table>
+
+  <h2>Design principles</h2>
+  <ul>
+    <li><strong>Findings, not verdicts.</strong> The pipeline never silently
+      mutates data or certifies a dataset as "clean" — it emits findings and
+      recommendations for a human to act on.</li>
+    <li><strong>Exact vs. heuristic is always labelled.</strong> Every finding
+      records the method used and (for heuristics) the measured score.</li>
+    <li><strong>Determinism.</strong> Fixed input + seed ⇒ reproducible output.</li>
+    <li><strong>Offline &amp; CPU-only.</strong> No stage needs a network or GPU.</li>
+  </ul>
+
+  <h2>Command</h2>
+<pre><code>evalforge audit \
+  --dataset datasets/fixtures/qa_toy/examples.jsonl \
+  --out results/audits/qa_toy/
+
+evalforge smoke --out results/reports/smoke_audit.md   # all fixtures at once</code></pre>
+
+  <h3>Relevant files</h3>
+  <ul class="files">
+    <li>src/eval_dataset_forge/{validation,dedup,leakage,labels,difficulty,splits,statistics}/</li>
+    <li>src/eval_dataset_forge/reports/</li>
+    <li>docs/METHODOLOGY.md</li>
+  </ul>
+  <h3>Status</h3>
+  <p>Stage modules land in Milestones 3–9; the report and end-to-end smoke audit
+  are assembled in Milestones 11–12.</p>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>
