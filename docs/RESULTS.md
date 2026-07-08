@@ -10,6 +10,12 @@ summarizes the outcome. Because the fixtures are hand-authored with deliberate
 defects, the audit's job is to **rediscover the planted defects** — that is the
 demonstration that the checks work.
 
+The five fixtures landed in Milestone 2 (`datasets/fixtures/`, 56 examples). Each
+carries a machine-readable `defects.yaml` recording its planted defects as ground
+truth, so the audit can be scored for **recall** here (found ÷ planted, excluding
+defects marked `auto_detectable: false`) rather than reported as a bare count. The
+fixtures already validate structurally (`python3 scripts/validate_fixtures.py`).
+
 ## Expected findings per fixture (to be confirmed by the run)
 
 | fixture | planted defects the audit should surface |

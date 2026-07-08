@@ -1,0 +1,52 @@
+# Ground truth for qa_toy: the defects deliberately planted in examples.jsonl.
+# The audit stages are scored against this file; it is descriptive ground truth,
+# not a schema-validated model. `auto_detectable: false` marks defects that no
+# heuristic in this project is expected to catch (documented limitations), so
+# they are not counted against audit recall.
+dataset_id: qa_toy
+task_family: qa
+example_count: 14
+description: >
+  Synthetic question-answering fixture with deliberately planted defects: an
+  exact duplicate, a paraphrase (near) duplicate, a mislabeled answer, two
+  ambiguous questions, a missing gold answer, conflicting annotator labels,
+  train/test overlap, an answer-in-prompt leak, and a duplicated source record.
+
+planted_defects:
+  exact_duplicates:
+    - ids: [qa-001, qa-002]
+      note: identical question and gold answer (qa-002 also sits in test)
+  near_duplicates:
+    - ids: [qa-003, qa-004]
+      note: paraphrase ("Who wrote" vs "Who is the author of")
+  label_issues:
+    - id: qa-006
+      kind: mislabeled
+      auto_detectable: false
+      note: gold answer "Ag" is silver; the correct symbol for gold is "Au"
+    - id: qa-008
+      kind: ambiguous
+      note: many primary colors are valid answers
+    - id: qa-009
+      kind: ambiguous
+      note: underspecified question with no referent
+    - id: qa-010
+      kind: missing
+      note: empty expected_output
+    - id: qa-011
+      kind: conflicting
+      note: annotators disagree (1945 vs 1944)
+  leakage:
+    - kind: train_test_overlap
+      ids: [qa-001, qa-002]
+      note: identical example across train and test
+    - kind: train_test_overlap
+      ids: [qa-003, qa-004]
+      note: near-duplicate across train and test
+    - kind: answer_in_prompt
+      ids: [qa-007]
+      note: gold answer "Berlin" appears verbatim in the prompt
+  duplicate_sources:
+    - ids: [qa-003, qa-012]
+      source_id: src-shakespeare
+      note: two examples derived from the same source record

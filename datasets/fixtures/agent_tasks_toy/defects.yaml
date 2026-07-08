@@ -1,0 +1,42 @@
+# Ground truth for agent_tasks_toy. See qa_toy/defects.yaml for the format.
+dataset_id: agent_tasks_toy
+task_family: agent_task
+example_count: 12
+description: >
+  Synthetic agent-task fixture (coding + research tasks) with planted defects: an
+  exact duplicate, a paraphrase (near) duplicate, a leaked reference solution in
+  the prompt, an ambiguous task with no success criteria, a missing gold output,
+  conflicting annotator labels, an inconsistently formatted gold output, and
+  train/test overlap. Coding tasks carry a dict expected_output
+  ({reference_solution, success_criteria}); research tasks carry {reference_answer}.
+
+planted_defects:
+  exact_duplicates:
+    - ids: [agent-005, agent-006]
+      note: identical research task and reference answer
+  near_duplicates:
+    - ids: [agent-001, agent-002]
+      note: paraphrased fizzbuzz task with the same reference solution
+  label_issues:
+    - id: agent-009
+      kind: ambiguous
+      note: "'Make the report better.' has no success criteria"
+    - id: agent-009
+      kind: missing
+      note: empty expected_output
+    - id: agent-010
+      kind: conflicting
+      note: annotators disagree on the is_prime(1) boundary
+    - id: agent-011
+      kind: inconsistent_format
+      note: bare-string expected_output where peer coding tasks use a dict rubric
+  leakage:
+    - kind: answer_in_prompt
+      ids: [agent-004]
+      note: reference solution "return s[::-1]" is quoted in the prompt
+    - kind: train_test_overlap
+      ids: [agent-001, agent-002]
+      note: near-duplicate across train and test
+    - kind: train_test_overlap
+      ids: [agent-005, agent-006]
+      note: identical example across train and test

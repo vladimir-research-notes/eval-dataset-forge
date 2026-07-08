@@ -1,0 +1,40 @@
+# Ground truth for bio_toy. See qa_toy/defects.yaml for the format.
+# All content is non-clinical, non-patient-specific textbook biology.
+dataset_id: bio_toy
+task_family: bio
+example_count: 10
+description: >
+  Synthetic, non-clinical biomedical-style fixture (textbook lookup + entity
+  classification) with planted defects: an exact duplicate, a paraphrase (near)
+  duplicate, conflicting entity-classification labels, an ambiguous question, a
+  missing gold answer, a mislabeled answer, and train/test overlap. No medical
+  advice, dosing, or patient data.
+
+planted_defects:
+  exact_duplicates:
+    - ids: [bio-003, bio-006]
+      note: identical DNA-bases question and answer
+  near_duplicates:
+    - ids: [bio-001, bio-002]
+      note: paraphrased insulin question
+  label_issues:
+    - id: bio-004
+      kind: conflicting
+      note: annotators classify 'aspirin' as "drug" vs "chemical compound"
+    - id: bio-007
+      kind: ambiguous
+      note: "'Is the level high?' has no reference range or context"
+    - id: bio-008
+      kind: missing
+      note: empty expected_output
+    - id: bio-009
+      kind: mislabeled
+      auto_detectable: false
+      note: gold answer "23" is wrong; a human somatic cell has 46 chromosomes
+  leakage:
+    - kind: train_test_overlap
+      ids: [bio-001, bio-002]
+      note: near-duplicate across train and test
+    - kind: train_test_overlap
+      ids: [bio-003, bio-006]
+      note: identical example across train and test

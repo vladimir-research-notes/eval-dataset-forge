@@ -75,6 +75,27 @@
   splits/{train,dev,test}.jsonl
   REPRODUCE.md          exact rebuild commands</code></pre>
 
+  <h2 id="fixtures">Fixture datasets <span class="status done">Milestone 2</span></h2>
+  <p>Five small, synthetic datasets under <code>datasets/fixtures/</code> exercise
+  the schema and, deliberately, break it in <em>semantic</em> (not structural)
+  ways so the audit stages have real defects to find. Each is a directory with
+  <code>examples.jsonl</code>, a machine-readable <code>defects.yaml</code>
+  (ground truth of the planted defects), and a <code>README.md</code>.</p>
+  <table>
+    <tr><th>fixture</th><th>family</th><th>n</th><th>planted defects</th></tr>
+    <tr><td><code>qa_toy</code></td><td>qa</td><td>14</td><td>exact/paraphrase duplicates, mislabeled answer, ambiguous questions, missing &amp; conflicting labels, train/test overlap, answer-in-prompt, duplicate source</td></tr>
+    <tr><td><code>agent_tasks_toy</code></td><td>agent_task</td><td>12</td><td>near/exact duplicates, leaked solution in prompt, ambiguous scoring, missing/conflicting/inconsistent-format labels</td></tr>
+    <tr><td><code>retrieval_toy</code></td><td>retrieval</td><td>10</td><td>near-duplicate query, duplicated &amp; paraphrased docs, label-artifact contamination, incomplete relevance, over-specific query</td></tr>
+    <tr><td><code>bio_toy</code></td><td>bio</td><td>10</td><td>exact/near duplicates, conflicting entity labels, ambiguous &amp; missing labels, mislabeled answer (non-clinical)</td></tr>
+    <tr><td><code>safety_toy</code></td><td>safety</td><td>10</td><td>duplicates, over-refusal mislabel, ambiguous boundary, conflicting/missing/inconsistent labels — unsafe items are placeholders only</td></tr>
+  </table>
+  <p>Defects no heuristic can catch — a well-formed but factually wrong gold
+  answer — are marked <code>auto_detectable: false</code> in
+  <code>defects.yaml</code> and excluded from audit-recall scoring, an explicit
+  limitation rather than a hidden gap. <code>scripts/validate_fixtures.py</code>
+  checks structural validity; <code>tests/test_fixtures.py</code> also verifies the
+  ground truth matches the data.</p>
+
   <h2>Finding &amp; result types</h2>
   <p><code>AuditResult</code> aggregates <code>DeduplicationFinding</code>,
   <code>LeakageFinding</code>, <code>LabelAuditFinding</code>, PII flags,

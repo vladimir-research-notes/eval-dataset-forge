@@ -125,3 +125,31 @@ datasets/releases/<dataset_id>_v<version>/
 
 All fields above are defined as pydantic models so that malformed data fails
 loudly at load time rather than silently propagating into an audit.
+
+## Fixture datasets (Milestone 2)
+
+Five synthetic fixtures under `datasets/fixtures/` are instances of this schema
+with defects planted on purpose (they are structurally valid but semantically
+flawed):
+
+- `qa_toy`, `agent_tasks_toy`, `retrieval_toy`, `bio_toy`, `safety_toy`
+  (56 examples total).
+
+Each fixture directory contains:
+
+- `examples.jsonl` — the examples (one `DatasetExample` per line).
+- `defects.yaml` — **machine-readable ground truth**: the defects deliberately
+  planted, keyed by category (`exact_duplicates`, `near_duplicates`, `leakage`,
+  `label_issues`, `duplicate_sources`, and family-specific categories). This lets
+  the audit stages be scored for *recall* against known defects, not merely
+  “it found something”. Defects no heuristic in this project can catch — e.g. a
+  well-formed but factually wrong gold answer — are marked
+  `auto_detectable: false` and excluded from recall.
+- `README.md` — a human-readable table of the planted defects.
+
+The loader (`eval_dataset_forge.datasets.loader`) reads and schema-validates
+fixtures; `scripts/validate_fixtures.py` checks structural health (schema, unique
+ids, known `task_family`, valid ground-truth references) and
+`tests/test_fixtures.py` additionally verifies the ground truth matches the data.
+`.jsonl` is the committed format; the loader also accepts a YAML list for
+hand-authored inputs.

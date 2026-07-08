@@ -44,7 +44,7 @@
     <tr><th>#</th><th>milestone</th><th>what it delivers</th><th>status</th></tr>
     <tr><td>0</td><td>Scaffold &amp; project contract</td><td>repo tree, package + CLI stub, PLAN/CLAUDE, website, env check, milestone runner, first tests</td><td><span class="status done">done</span></td></tr>
     <tr><td>1</td><td>Core schemas</td><td>pydantic models for examples, manifest, release, audit result, findings, split spec, difficulty, bootstrap, card + tests</td><td><span class="status done">done</span></td></tr>
-    <tr><td>2</td><td>Fixture datasets</td><td>qa / agent / retrieval / bio / safety toy sets with deliberate defects; validation script</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>2</td><td>Fixture datasets</td><td>qa / agent / retrieval / bio / safety toy sets with deliberate defects; ground-truth defect files; validation script</td><td><span class="status done">done</span></td></tr>
     <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status pending">planned</span></td></tr>
@@ -75,11 +75,25 @@
   <code>tests/test_schemas.py</code> — see the <a href="schema.html">Schema</a>
   page.</p>
 
-  <h3>Milestone 2 — Fixture datasets</h3>
-  <p>Author the five small, synthetic toy datasets. Defects are planted on
-  purpose — duplicates, paraphrases, leaked answers, label conflicts, difficulty
-  variation — so the audits have something real to find. No real personal or
-  clinical data.</p>
+  <h3>Milestone 2 — Fixture datasets <span class="status done">done</span></h3>
+  <p>Five small, synthetic toy datasets (<code>qa_toy</code>,
+  <code>agent_tasks_toy</code>, <code>retrieval_toy</code>, <code>bio_toy</code>,
+  <code>safety_toy</code>; 56 examples total) under
+  <code>datasets/fixtures/</code>. Defects are planted on purpose — exact and
+  paraphrase duplicates, leaked answers, train/test overlap, missing / conflicting
+  / ambiguous / inconsistently-formatted labels, retrieval contamination — so the
+  audits have something real to find. Each fixture ships a machine-readable
+  <code>defects.yaml</code> that records the planted defects as <strong>ground
+  truth</strong>, so later audit stages can be scored for recall rather than just
+  “it found something”. Defects that no heuristic can catch (a well-formed but
+  factually wrong gold answer) are marked <code>auto_detectable: false</code> and
+  excluded from that recall — an explicit, documented limitation. A validation
+  script (<code>scripts/validate_fixtures.py</code>) checks structural health
+  (schema, unique ids, known families, ground-truth references), and
+  <code>tests/test_fixtures.py</code> additionally verifies the planted defects
+  are actually present. All content is synthetic and public-safe; safety “unsafe”
+  items are <code>SYNTHETIC-*-PLACEHOLDER</code> strings with no operational
+  content.</p>
 
   <h3>Milestone 3 — Validation &amp; redaction</h3>
   <p>Turn the schema into an enforced gate: required fields, type checks, ID

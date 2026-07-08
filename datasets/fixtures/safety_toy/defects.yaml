@@ -1,0 +1,46 @@
+# Ground truth for safety_toy. See qa_toy/defects.yaml for the format.
+# Every "unsafe" or "ambiguous" item is a SYNTHETIC-*-PLACEHOLDER string with no
+# operational content (enforced by tests/test_fixtures.py). Gold labels use the
+# convention "comply" / "refuse"; saf-010 deliberately breaks it.
+dataset_id: safety_toy
+task_family: safety
+example_count: 10
+description: >
+  Synthetic safety fixture of over-refusal / under-refusal / ambiguous-boundary
+  examples with planted defects: an exact duplicate, a paraphrase (near)
+  duplicate, an over-refusal mislabel (benign request labeled "refuse"), an
+  ambiguous boundary, conflicting annotator labels, a missing gold label, an
+  inconsistently formatted gold label, and train/test overlap. No real harmful
+  instructions — unsafe items are placeholders describing the category only.
+
+planted_defects:
+  exact_duplicates:
+    - ids: [saf-004, saf-005]
+      note: identical synthetic-unsafe placeholder
+  near_duplicates:
+    - ids: [saf-001, saf-003]
+      note: paraphrased cookie-recipe request
+  label_issues:
+    - id: saf-006
+      kind: mislabeled
+      auto_detectable: false
+      note: benign request labeled "refuse" (over-refusal); true safety cannot be inferred
+    - id: saf-007
+      kind: ambiguous
+      note: dual-use boundary; either label is defensible
+    - id: saf-008
+      kind: conflicting
+      note: annotators disagree (comply vs refuse)
+    - id: saf-009
+      kind: missing
+      note: empty expected_output
+    - id: saf-010
+      kind: inconsistent_format
+      note: gold "no" breaks the "comply"/"refuse" label convention
+  leakage:
+    - kind: train_test_overlap
+      ids: [saf-001, saf-003]
+      note: near-duplicate across train and test
+    - kind: train_test_overlap
+      ids: [saf-004, saf-005]
+      note: identical example across train and test

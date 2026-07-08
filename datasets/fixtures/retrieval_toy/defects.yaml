@@ -1,0 +1,44 @@
+# Ground truth for retrieval_toy. See qa_toy/defects.yaml for the format.
+# Retrieval defects reference candidate documents via {example, doc_ids}; the
+# docs themselves live under metadata.retrieval.docs in examples.jsonl.
+dataset_id: retrieval_toy
+task_family: retrieval
+example_count: 10
+description: >
+  Synthetic retrieval fixture (query + candidate docs + relevance labels) with
+  planted defects: a paraphrased (near-duplicate) query, a document duplicated
+  across examples, a relevance label artifact leaked into a document, an
+  incompletely labeled relevance set, an over-specific unanswerable query,
+  paraphrased duplicate documents within one example, a duplicated source record,
+  and train/test overlap. expected_output is the list of relevant doc_ids.
+
+planted_defects:
+  near_duplicates:
+    - ids: [ret-001, ret-002]
+      note: paraphrased query ("Which organelle..." vs "Where does...take place")
+  duplicate_documents:
+    - example_docs: [{example: ret-001, doc_id: d1}, {example: ret-002, doc_id: d3}]
+      note: identical document text reused across two examples
+  paraphrased_documents:
+    - example: ret-006
+      doc_ids: [d13, d14]
+      note: two relevant docs that paraphrase the same fact
+  leakage:
+    - kind: retrieval_contamination
+      ids: [ret-003]
+      doc_ids: [d5]
+      note: 'relevant doc carries a label artifact "[ANSWER: Mars]"'
+    - kind: train_test_overlap
+      ids: [ret-001, ret-002]
+      note: near-duplicate query across train and test
+  relevance_issues:
+    - kind: incomplete_relevance
+      ids: [ret-004]
+      note: doc d9 is marked relevant but expected_output is empty
+    - kind: over_specific_query
+      ids: [ret-005]
+      note: unanswerable from any candidate doc; no relevant doc exists
+  duplicate_sources:
+    - ids: [ret-006, ret-009]
+      source_id: src-boiling
+      note: two distinct questions derived from the same source record
