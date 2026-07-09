@@ -99,12 +99,18 @@
   the data rather than describing it — the <a href="splits.html">split builder</a>, whose
   five strategies share one algorithm and differ only in which dependence between examples
   they refuse to cut through, and which verifies every build by re-running the leakage
-  checks over its own output; and Milestone 8 added
+  checks over its own output; Milestone 8 added
   <a href="difficulty.html">difficulty calibration</a> — a transparent surface proxy, and a
   permutation test that <strong>falsifies it</strong>: on these fixtures the proxy's ranking
   is indistinguishable from a random ranking of the declared difficulty tags, because what
   it really measures is task family. The score ships, reported and explicitly uncertified.
-  The remaining audit subsystems follow milestone by milestone — see
+  Milestone 9 added <a href="statistics.html">statistical uncertainty &amp; ranking
+  stability</a>, which turns the deduplication report into a correction: a coverage
+  simulation with known ground truth shows the textbook i.i.d. bootstrap covering
+  <strong>88.2%</strong> against a nominal 95% on a corpus with duplicate clusters, so the
+  intervals resample <em>blocks</em> instead, the widely-reported "win fraction" is shown not
+  to be a p-value (11.4% type-I error), and the demo leaderboard is reversed by deleting one
+  duplicate cluster. The remaining audit subsystems follow milestone by milestone — see
   <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
   contract.</p>
 

@@ -43,11 +43,25 @@
     <li><strong>Contamination we cannot see.</strong> Overlap is measured only
       against provided reference text; private pretraining contamination is
       undetectable — absence of a flag is not proof.</li>
+    <li><strong>The i.i.d. bootstrap is wrong on a corpus with duplicates, and ours
+      still is — a little.</strong> Measured against known ground truth, the textbook
+      percentile interval covers 0.882 at a nominal 0.95 when duplicate clusters are
+      present, so <a href="statistics.html">statistics</a> resamples blocks instead
+      (0.937). But it can only correct for dependence the dedup ladder can <em>see</em>:
+      the reported design effect is a <strong>lower bound</strong> and the intervals
+      remain slightly too narrow.</li>
+    <li><strong>A bootstrap "win fraction" is not a p-value.</strong> The widespread
+      "A wins 95% of resamples" rule has a measured type-I error of 11.4% against a
+      nominal 5%. We report it and decide with a Holm-corrected, cluster-aware sign-flip
+      test — which is itself conservative (0.029) on paired binary scores.</li>
     <li><strong>Statistics quantify sampling noise only</strong>, not whether the
-      examples are representative, and use simple percentile/resampling methods.</li>
+      examples are representative. The demo's system scores are synthetic; the block
+      structure is real, the systems are not, and no claim about any model follows.</li>
     <li><strong>Small datasets.</strong> Stratification and ranking stability are
       inherently limited at small N; the tool reports achieved distributions and
-      instability warnings rather than pretending otherwise.</li>
+      instability warnings rather than pretending otherwise. On the pooled corpus the
+      smallest detectable system gap is 0.321 accuracy points, and deleting one duplicate
+      cluster reverses the demo leaderboard.</li>
     <li><strong>PII/secret detection is pattern- and entropy-based.</strong> The
       <a href="validation.html">validation</a> layer removes only what its
       regexes and entropy heuristic recognize — it misses novel formats (false

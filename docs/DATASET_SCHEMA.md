@@ -103,9 +103,31 @@ Notes:
 - **DifficultyScore** — `example_id`, `score`, `bucket`, `components` (per-signal
   contributions), `method`.
 - **BootstrapResult** — `metric`, `point_estimate`, `ci_low`, `ci_high`,
-  `n_resamples`, `seed`.
+  `n_resamples`, `seed`, plus `system`, `method`, `resample_unit` (added in
+  Milestone 9; additive, with defaults, so records written before it still load).
+  The last two are load-bearing rather than decorative: a percentile interval and a
+  BCa interval over the same resamples are different intervals, and an interval that
+  resampled *examples* assumes an independence that one resampling *duplicate
+  blocks* does not. A stored result omitting them could not be compared with
+  another. `method` records what actually ran — a BCa request that hit a degenerate
+  case is written `"bca->percentile"`. See [`STATISTICS.md`](STATISTICS.md).
 - **DatasetCard** — structured card fields (purpose, construction, schema,
   splits, known issues, audit findings, limitations, recommended use, non-goals).
+
+### System scores (Milestone 9)
+
+Not part of a release; an *input* to `evalforge stats`. JSONL, one record per line,
+in either shape (they may be mixed):
+
+```json
+{"example_id": "qa-001", "system": "sys_a", "score": 1.0}
+{"example_id": "qa-001", "scores": {"sys_a": 1.0, "sys_b": 0}}
+```
+
+Alignment against the dataset is strict in both directions — a score for an unknown
+example, or an example no system scored, raises rather than being imputed.
+`datasets/fixtures/qa_toy/system_scores.jsonl` is a committed, **synthetic** example
+of the format.
 
 ## Release directory
 

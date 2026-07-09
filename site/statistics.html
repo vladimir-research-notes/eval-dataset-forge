@@ -29,39 +29,218 @@
   </nav>
 </header>
 <main>
-  <p><span class="status pending">implemented in Milestone 9</span></p>
+  <p><span class="status done">implemented in Milestone 9</span></p>
   <h1>Statistical uncertainty &amp; ranking stability</h1>
-  <p class="lede">A single accuracy number without an uncertainty estimate
-  invites over-reading. We quantify how much a benchmark's verdicts can be
-  trusted, using transparent resampling.</p>
+  <p class="lede">Every earlier stage describes the dataset. This one describes what the
+  dataset can <em>support</em> — and for a benchmark of the size most teams actually build,
+  that is much less than its leaderboard implies.</p>
 
-  <h2>Methods</h2>
+  <div class="callout warn"><strong>The headline.</strong> The textbook bootstrap resamples
+  <em>examples</em>, which assumes examples are independent. On a corpus with duplicates they
+  are not: a deterministic system scores every member of an exact-duplicate cluster
+  identically, so the within-cluster correlation is <strong>1 by construction</strong>. A
+  coverage simulation with known ground truth shows the i.i.d. interval covering
+  <strong>88.2%</strong> of the time against a nominal 95%. Resampling <em>duplicate
+  blocks</em> instead recovers 93.7%. The pooled corpus's 56 examples are worth
+  <strong>≈ 36</strong> independent ones.</div>
+
+  <h2>1. The resampling unit is a first-class parameter</h2>
+  <p>Every bootstrap implementation encodes an assumption about what "a fresh dataset" is
+  made of. Here it is named rather than hidden, and both are always computed so the report
+  can quote the ratio of their variances — the <strong>design effect</strong>.</p>
   <table>
-    <tr><th>method</th><th>question it answers</th></tr>
-    <tr><td>Bootstrap CI</td><td>how wide is the interval around a system's score? (percentile CI, default B=1000, fixed seed)</td></tr>
-    <tr><td>Paired comparison</td><td>resampling the same examples, how often does A beat B, and what is the CI on the difference?</td></tr>
-    <tr><td>Ranking stability</td><td>how often does the top system / full ordering survive resampling and example removal?</td></tr>
-    <tr><td>Small-N warning</td><td>is the dataset too small (or the effect too small vs. CI width) to rank these systems?</td></tr>
+    <tr><th>unit</th><th>one draw pulls</th><th>assumption</th></tr>
+    <tr><td><code>example</code></td><td>one example</td><td>examples are independent</td></tr>
+    <tr><td><code>block</code> (default)</td><td>one duplicate / source block</td><td><em>blocks</em> are independent</td></tr>
   </table>
+  <p>Blocks come from <code>splits.blocks.duplicate_blocks</code> — the same union-find
+  components the <a href="splits.html">adversarial split strategy</a> uses. The two stages
+  therefore agree about what a dependent group is, and both inherit the
+  <a href="deduplication.html">near-duplicate stage's recall bound</a>.</p>
 
-  <p>Inputs are per-example scores for one or more systems — synthetic fixture
-  scores in the offline demo, real eval outputs in use. Emitted as
-  <code>BootstrapResult</code>s plus ranking-frequency summaries.</p>
+  <h3>Coverage, against known ground truth</h3>
+  <p>A confidence interval's only testable property is that it contains the true parameter
+  95% of the time. That sentence needs a true parameter, which a real benchmark never has —
+  so we simulate one. 44 blocks with the pooled corpus's exact size profile (34 singletons,
+  8 pairs, 2 triples = 56 examples); each block's outcome is Bernoulli(<em>p</em>) and is
+  copied to its members. 3000 trials, B = 999, Monte Carlo error ±0.004.</p>
+  <table>
+    <tr><th>true accuracy</th><th>i.i.d. bootstrap</th><th>cluster bootstrap</th><th>cluster + BCa</th></tr>
+    <tr><td>0.50</td><td>0.904</td><td><strong>0.944</strong></td><td>0.954</td></tr>
+    <tr><td>0.70</td><td>0.882</td><td><strong>0.937</strong></td><td>0.956</td></tr>
+    <tr><td>0.90</td><td>0.847</td><td><strong>0.884</strong></td><td>0.947</td></tr>
+  </table>
+  <p><strong>Positive control.</strong> On genuinely i.i.d. data the same percentile interval
+  covers <strong>0.954</strong> at <em>p</em> = 0.50 — nominal, as it should be. The rows
+  above are caused by the clustering, not by a broken harness.</p>
+  <p><strong>Falsification.</strong> Simulating the same 44 blocks with zero within-block
+  correlation returns a measured design effect of 1.0 and intervals that coincide. The
+  widening tracks the dependence, not the choice of unit.</p>
 
-  <div class="callout">Deliberate non-overclaiming: we report percentile bootstrap
-  intervals and resampling frequencies — simple, inspectable quantities. We do
-  not claim exact coverage or apply corrections we cannot justify on this data.
-  These methods quantify sampling uncertainty over the <em>given</em> examples,
-  not whether those examples are representative.</div>
+  <h3>What it costs the pooled corpus</h3>
+  <table>
+    <tr><th>quantity</th><th>value</th></tr>
+    <tr><td>examples</td><td>56</td></tr>
+    <tr><td>duplicate blocks</td><td>44 (34 singletons, 8 pairs, 2 triples)</td></tr>
+    <tr><td>Kish mean cluster size, Σm²/Σm</td><td>1.50</td></tr>
+    <tr><td>design effect — Kish closed form at ICC = 1</td><td>1.50</td></tr>
+    <tr><td>design effect — <strong>measured</strong> variance ratio</td><td>1.39 – 1.56</td></tr>
+    <tr><td>CI widening</td><td>1.16× – 1.29×</td></tr>
+    <tr><td>effective sample size</td><td><strong>≈ 36</strong>, not 56</td></tr>
+  </table>
+  <p>Kish's <code>1 + (m̄ − 1)·ICC</code> is derived for equal cluster sizes and applied here
+  to unequal ones. It disagrees with the measured ratio by up to 8%, so the report quotes
+  <strong>both</strong> rather than the flattering one.</p>
+
+  <h2>2. The bootstrap "win fraction" is not a p-value</h2>
+  <p>The rule <em>"A beats B if A wins ≥ 95% of the bootstrap resamples"</em> is a
+  <strong>one-sided</strong> 95% statement, applied post hoc in whichever direction the data
+  happened to favour. Its two-sided size is therefore ≈ 0.10. Measured under a true null
+  (n = 56, two independent Bernoulli(0.7) systems, 3000 trials, nominal α = 0.05):</p>
+  <table>
+    <tr><th>decision rule</th><th>type-I error</th></tr>
+    <tr><td>win fraction ≥ 0.95, used two-sidedly</td><td><strong>0.114</strong></td></tr>
+    <tr><td>win fraction ≥ 0.975</td><td>0.057</td></tr>
+    <tr><td>cluster-aware sign-flip test, p ≤ 0.05</td><td><strong>0.029</strong></td></tr>
+  </table>
+  <p>eval-dataset-forge reports the win fraction — readers expect it — and <strong>decides</strong>
+  with the sign-flip permutation test. <code>significant</code> reads the Holm-corrected
+  p-value and never the win fraction.</p>
+
+  <h3>The sign-flip test, and its honest cost</h3>
+  <p>Under the null that A and B are exchangeable, the paired difference is symmetric about
+  zero, so flipping signs leaves the distribution unchanged. Signs are flipped at the
+  <strong>block</strong> level: flipping per example would silently restore the independence
+  assumption the cluster bootstrap exists to remove. The p-value uses the Phipson–Smyth
+  <code>(1 + count) / (1 + B)</code> estimator, so it is floored at <code>1/(1+B)</code>
+  rather than claiming an unsupportable <code>p = 0</code>.</p>
+  <p>The cost is in the table above: at nominal 0.05 the test rejects only 0.029. It is
+  <strong>conservative</strong> on paired binary scores, because most examples are ties and
+  the null distribution is coarse. Reported, not hidden.</p>
+
+  <div class="callout"><strong>Two nulls can disagree, and that is not a bug.</strong> On the
+  demo, <code>sys_a</code> vs <code>sys_c</code> has a 95% CI of <code>[+0.033, +0.411]</code>
+  — excluding zero — and a sign-flip <code>p = 0.051</code>. The bootstrap interval is centred
+  on the <em>observed</em> effect; the sign-flip null is centred on zero and preserves each
+  block's |difference|, so the effect's own magnitude enters the null's spread (null sd 0.101
+  vs bootstrap sd 0.096). The permutation test is the more conservative near the boundary, and
+  it is what <code>significant</code> reads. The report warns about the disagreement rather
+  than resolving it by quoting the friendlier number.</div>
+
+  <p>And a p-value is itself an estimate: <code>p = 0.051</code> at B = 2000 carries a Monte
+  Carlo standard error of 0.005. Every comparison reports <code>p_mc_se</code>, and
+  <code>p_is_borderline</code> fires when the verdict is set by the seed rather than the data.
+  Multiplicity across the K(K−1)/2 pairs a leaderboard implies is handled by Holm–Bonferroni,
+  which controls family-wise error under arbitrary dependence between the tests.</p>
+
+  <h2>3. Deletion explains fragility better than resampling</h2>
+  <p>Resampling answers "would a different sample have produced this leaderboard?". Deletion
+  answers a sharper question: <em>what is the smallest set of examples whose removal erases
+  A's lead over B?</em> No seed, no interval — an integer, computed exactly.</p>
+  <p>The argument is two lines. Deleting a set of units leaves mean
+  <code>(S − R) / (N − M)</code>, and the <strong>sign of a mean does not depend on its
+  denominator</strong>. So the example counts of the deleted units are irrelevant: minimising
+  the remaining mean over all k-unit deletions is exactly maximising R, which the k largest
+  unit sums achieve. Greedy is optimal, and it is brute-forced against every subset on small
+  inputs in the test suite.</p>
+
+  <h3>On the demo systems</h3>
+  <table>
+    <tr><th>question</th><th>answer</th></tr>
+    <tr><td>examples whose deletion reverses the 3.6-point lead</td><td><strong>2 of 56</strong> (<code>agent-005</code>, <code>agent-006</code>)</td></tr>
+    <tr><td>duplicate clusters whose deletion reverses it</td><td><strong>1</strong></td></tr>
+    <tr><td>95% CI on the margin (cluster bootstrap)</td><td><code>[−0.185, +0.264]</code> — contains zero</td></tr>
+    <tr><td>sign-flip p (Holm-corrected)</td><td>0.883</td></tr>
+    <tr><td>times <code>sys_a</code> holds first place under resampling</td><td><strong>63.2%</strong></td></tr>
+    <tr><td>smallest gap this corpus can detect at 80% power</td><td><strong>0.321</strong></td></tr>
+    <tr><td>examples needed to detect the observed 0.036 gap</td><td><strong>≈ 4500</strong></td></tr>
+  </table>
+  <p>The two examples are one block. <strong>This is a mechanism, not a coincidence:</strong>
+  a cluster of size <em>m</em> contributes <em>m</em> times to a margin while carrying one
+  item's worth of information, so duplicates are the highest-leverage items in any close
+  comparison. A benchmark whose winner is decided by one duplicate cluster is not measuring
+  what its leaderboard claims to show.</p>
+
+  <h2>The verdict, and the interval method</h2>
+  <p><code>StatsReport.ranking_resolved</code> is a single bit, true only when three
+  independent conditions hold: effective sample size ≥ 30, the leader holds first place in
+  ≥ 95% of resamples, and its margin over the runner-up survives Holm correction. On the
+  committed fixtures it is <strong>False</strong>, and
+  <code>evalforge stats --fail-on-unstable-ranking</code> exits 1.</p>
+  <p>Ties are common, not exotic — a mean over 56 examples takes one of 57 values. Top-1
+  frequency splits a tie's credit evenly rather than breaking it by name (which would hand an
+  alphabetical system free first-place mass); exact-order frequency counts only strict
+  orderings; <code>tie_fraction</code> reports how often it mattered (8.8% of block resamples
+  on the demo, 35% on <code>qa_toy</code> alone).</p>
+  <p>The default interval is the <strong>percentile</strong> one. BCa is available and is
+  <em>not</em> the default, because it is not uniformly better:</p>
+  <table>
+    <tr><th>corpus</th><th>true accuracy</th><th>percentile</th><th>BCa</th></tr>
+    <tr><td>clustered</td><td>0.90</td><td>0.884</td><td><strong>0.947</strong></td></tr>
+    <tr><td>i.i.d.</td><td>0.90</td><td>0.910</td><td>0.921</td></tr>
+    <tr><td>i.i.d.</td><td>0.95</td><td>0.926</td><td><strong>0.830</strong></td></tr>
+  </table>
+  <p>At <em>p</em> = 0.95 on 56 examples the bootstrap distribution is near-degenerate: 5.7%
+  of trials cannot compute the bias correction at all (the interval falls back, and
+  <code>method</code> records <code>bca-&gt;percentile</code> rather than lying), and the ones
+  that can are corrected in the wrong direction. An interval method that is better on average
+  and worse exactly where the data is thinnest is offered, not imposed.</p>
+
+  <h2>Input format</h2>
+  <p>One JSON object per line, in either shape; they may be mixed.</p>
+  <pre><code>{"example_id": "qa-001", "system": "sys_a", "score": 1.0}
+{"example_id": "qa-001", "scores": {"sys_a": 1.0, "sys_b": 0}}</code></pre>
+  <p>Alignment is <strong>strict</strong>. A score for an example the dataset does not
+  contain, or an example no system scored, raises. The alternative is to impute, and every
+  imputation of a missing eval result is a silent decision about a system's score on an
+  example it may have crashed on.</p>
+
+  <div class="callout warn"><strong>Limitations.</strong> The demo's system scores are
+  <strong>synthetic</strong> — a Rasch simulator, so the machinery runs offline and the
+  coverage tests have a true parameter. The block structure is real; the systems are not, and
+  no claim about any model is made from them. The cluster bootstrap corrects only for
+  dependence the dedup ladder can <em>see</em>: <code>ret-001</code>/<code>ret-002</code> is a
+  paraphrase pair no lexical threshold reaches, so it yields no block edge and the reported
+  design effect is a <strong>lower bound</strong>. The percentile bootstrap under-covers at
+  extreme accuracies whatever the unit (0.910 at <em>p</em> = 0.90 on 56 i.i.d. examples).
+  <code>minimum_detectable_effect</code> and <code>required_n</code> are normal approximations
+  to a trinomial quantity — a scale, not a promise. The ICC is estimated and can come out
+  negative on data with no clustering; it is reported as undefined, never as zero, when no
+  cluster has more than one member. And all of this quantifies sampling uncertainty over the
+  <em>given</em> examples, not whether those examples are representative of the real task.</div>
 
   <h3>Relevant files</h3>
   <ul class="files">
     <li>src/eval_dataset_forge/statistics/{bootstrap,confidence,ranking_stability}.py</li>
+    <li>src/eval_dataset_forge/statistics/{scores,simulate}.py — score IO and the Rasch demo generator</li>
+    <li>src/eval_dataset_forge/statistics/__init__.py — <code>StatsReport</code>, <code>analyze_systems()</code></li>
+    <li>tests/test_statistics.py — 115 tests</li>
+    <li>datasets/fixtures/qa_toy/system_scores.jsonl — committed synthetic score file</li>
     <li>docs/STATISTICS.md</li>
   </ul>
+
   <h3>Status</h3>
-  <p>Design fixed in <code>docs/STATISTICS.md</code>; implementation + demo land in
-  Milestone 9.</p>
+  <p>Complete. 115 tests, all CPU-only and offline. Percentile and BCa intervals, i.i.d. and
+  cluster resampling, ICC / design effect / effective n, paired comparison with a
+  cluster-aware sign-flip test and Holm correction, minimum detectable effect, exact deletion
+  counts, ranking stability, and the <code>--fail-on-unstable-ranking</code> gate are
+  implemented; the verdict on the committed fixtures is <strong>not resolved</strong>, by
+  measurement.</p>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>Should <code>--resample-unit example</code> exist at all? It reproduces a method we
+      have measured to be wrong. It is retained so the report can quote the cost, and because
+      a corpus with no duplicates is entitled to it.</li>
+    <li>Should the near-duplicate stage's <em>false positives</em> widen the interval? A false
+      near-duplicate pins two independent examples into one block and inflates the design
+      effect. Conservative, but not free.</li>
+    <li>The sign-flip test is conservative on paired binary scores. An exact McNemar test on
+      the discordant pairs would be tighter for the binary case, at the cost of a special case
+      the graded-score path does not need.</li>
+    <li>A dataset card should probably print <code>effective_n</code> next to the row count.
+      Milestone 11 will decide.</li>
+  </ul>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

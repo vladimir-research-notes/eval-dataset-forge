@@ -348,6 +348,72 @@ Reproduce:
 python3 -m pytest -q tests/test_difficulty.py # 163 tests
 ```
 
+### Statistics & ranking stability (Milestone 9)
+
+This stage has no planted defect to rediscover, and its system scores are **synthetic**
+(no model runs offline). So it is scored the only way a statistical method can be: against
+**known ground truth in simulation** — does a 95% interval contain the true parameter 95%
+of the time? Full method, tables, and failure-mode analysis:
+[`STATISTICS.md`](STATISTICS.md).
+
+**It does not, and the reason is the corpus's own duplicates.** 3000 trials, `B = 999`,
+44 blocks with the pooled corpus's exact size profile, nominal coverage 0.95:
+
+| true accuracy | i.i.d. bootstrap | **cluster bootstrap** | cluster + BCa |
+|---|---|---|---|
+| 0.50 | 0.904 | **0.944** | 0.954 |
+| 0.70 | 0.882 | **0.937** | 0.956 |
+| 0.90 | 0.847 | **0.884** | 0.947 |
+
+On genuinely i.i.d. data the same percentile interval covers 0.954 — the positive control
+that makes the rows above a finding rather than a broken harness.
+
+Four results are worth stating precisely.
+
+**A duplicate cluster is not one example, and the textbook bootstrap counts it as one.**
+A deterministic system scores every member of an exact-duplicate cluster identically, so
+the within-cluster correlation is 1 *by construction*, not by measurement. Resampling
+examples therefore understates every interval. On the pooled corpus the measured design
+effect is 1.39–1.56 (Kish's closed form predicts 1.50), CIs widen 1.16×–1.29×, and 56
+examples are worth **≈ 36 independent ones**. Simulating the same blocks with zero
+within-block correlation returns a design effect of 1.0, so the widening tracks the
+dependence and not the choice of unit.
+
+**The bootstrap "win fraction" is not a p-value, and the error is not small.** Under a
+true null (`n = 56`, two Bernoulli(0.7) systems), the widespread rule "A beats B if A wins
+≥ 95% of resamples", used in whichever direction the data favours, rejects **11.4%** of
+the time against a nominal 5% — it is a one-sided threshold read two-sidedly. The
+corresponding two-sided threshold, 0.975, measures 0.057. The tool reports the win
+fraction and **decides** with a cluster-aware sign-flip permutation test, which measures
+0.029: conservative, because paired binary differences are mostly ties. All three numbers
+are pinned by tests.
+
+**One duplicate cluster decides the demo leaderboard.** `sys_a` leads `sys_b` by 3.6
+accuracy points. Deleting **2 of 56 examples** reverses it — and those two examples,
+`agent-005`/`agent-006`, are a single near-duplicate cluster. This is a mechanism, not a
+coincidence: a cluster of size *m* contributes *m* times to a margin while carrying one
+item's worth of information. The margin's 95% CI is `[-0.185, +0.264]`, the leader holds
+first place in 63.2% of resamples, and detecting a gap that size would need ≈ 4500
+examples. `ranking_resolved` is **False**, and `--fail-on-unstable-ranking` exits 1.
+
+**BCa is offered and not defaulted, because it is not uniformly better.** It repairs the
+clustered interval at an extreme accuracy (0.884 → 0.947 at *p* = 0.90) and **breaks** the
+i.i.d. one (0.926 → 0.830 at *p* = 0.95), where 5.7% of trials cannot compute the bias
+correction at all and fall back — reported as `method: "bca->percentile"` rather than
+silently relabelled.
+
+Two limits are inherited rather than introduced. The cluster bootstrap corrects only for
+dependence the dedup ladder can *see*, so the `ret-001`/`ret-002` paraphrase yields no
+block and the reported design effect is a **lower bound**. And the demo's system scores
+are simulated: the block structure is real, the systems are not, and no claim about any
+model is made.
+
+Reproduce:
+
+```bash
+python3 -m pytest -q tests/test_statistics.py # 115 tests
+```
+
 ## What will be reported here
 
 - Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII
@@ -355,8 +421,6 @@ python3 -m pytest -q tests/test_difficulty.py # 163 tests
 - Difficulty distributions per fixture and per split.
 - At least one built release (`datasets/releases/…`) with manifest + hashes.
 - At least one generated dataset card.
-- A bootstrap / ranking-stability demo on synthetic fixture system scores,
-  including any small-N instability warnings.
 
 ## Reproduce
 

@@ -154,17 +154,67 @@
   whose difficulty genuinely is surface-driven returns ρ &gt; 0.9 and
   <code>trustworthy = True</code>. Full analysis in <code>docs/DIFFICULTY.md</code>.</p>
 
+  <h2>Statistics &amp; ranking stability <span class="status done">M9</span></h2>
+  <p>This stage has no planted defect to rediscover, and its system scores are
+  <strong>synthetic</strong> (no model runs offline). So it is scored the only way a
+  statistical method can be: against <em>known ground truth in simulation</em> — does a 95%
+  interval contain the true parameter 95% of the time? 3000 trials, B = 999, on 44 blocks
+  with the pooled corpus's exact size profile.</p>
+  <table>
+    <tr><th>true accuracy</th><th>i.i.d. bootstrap</th><th>cluster bootstrap</th><th>cluster + BCa</th></tr>
+    <tr><td>0.50</td><td>0.904</td><td><strong>0.944</strong></td><td>0.954</td></tr>
+    <tr><td>0.70</td><td>0.882</td><td><strong>0.937</strong></td><td>0.956</td></tr>
+    <tr><td>0.90</td><td>0.847</td><td><strong>0.884</strong></td><td>0.947</td></tr>
+  </table>
+  <p>On genuinely i.i.d. data the same percentile interval covers 0.954 — the positive
+  control that makes the rows above a finding rather than a broken harness.</p>
+  <p><strong>A duplicate cluster is not one example, and the textbook bootstrap counts it as
+  one.</strong> A deterministic system scores every member of an exact-duplicate cluster
+  identically, so the within-cluster correlation is 1 <em>by construction</em>. On the pooled
+  corpus the measured design effect is 1.39–1.56 (Kish's closed form predicts 1.50), CIs
+  widen 1.16×–1.29×, and 56 examples are worth <strong>≈ 36 independent ones</strong>.
+  Simulating the same blocks with zero within-block correlation returns a design effect of
+  1.0, so the widening tracks the dependence and not the choice of unit.</p>
+  <p><strong>The bootstrap "win fraction" is not a p-value.</strong> Under a true null
+  (n = 56, two Bernoulli(0.7) systems), the rule "A beats B if A wins ≥ 95% of resamples",
+  read in whichever direction the data favours, rejects <strong>11.4%</strong> of the time
+  against a nominal 5% — a one-sided threshold used two-sidedly. The corresponding 0.975
+  threshold measures 0.057. The tool reports the win fraction and <em>decides</em> with a
+  cluster-aware sign-flip test, which measures 0.029: conservative, because paired binary
+  differences are mostly ties.</p>
+  <p><strong>One duplicate cluster decides the demo leaderboard.</strong> <code>sys_a</code>
+  leads <code>sys_b</code> by 3.6 accuracy points. Deleting <strong>2 of 56 examples</strong>
+  reverses it — and those two, <code>agent-005</code>/<code>agent-006</code>, are a single
+  near-duplicate cluster. A mechanism, not a coincidence: a cluster of size <em>m</em>
+  contributes <em>m</em> times to a margin while carrying one item's worth of information.
+  The margin's 95% CI is <code>[−0.185, +0.264]</code>, the leader holds first place in 63.2%
+  of resamples, and detecting a gap that size would need ≈ 4500 examples.
+  <code>ranking_resolved</code> is <strong>False</strong>, and
+  <code>--fail-on-unstable-ranking</code> exits 1.</p>
+  <p><strong>BCa is offered and not defaulted</strong>, because it is not uniformly better:
+  it repairs the clustered interval at an extreme accuracy (0.884 → 0.947 at p = 0.90) and
+  <em>breaks</em> the i.i.d. one (0.926 → 0.830 at p = 0.95), where 5.7% of trials cannot
+  compute the bias correction and fall back — reported as <code>bca-&gt;percentile</code>
+  rather than silently relabelled. Two limits are inherited: the cluster bootstrap corrects
+  only for dependence the dedup ladder can see, so the design effect is a lower bound; and
+  the demo's systems are simulated. Full analysis in <code>docs/STATISTICS.md</code>.</p>
+
   <h2>Reproduce</h2>
 <pre><code>python3 -m pytest -q tests/test_dedup.py      # 99 tests
 python3 -m pytest -q tests/test_leakage.py    # 111 tests
 python3 -m pytest -q tests/test_labels.py     # 144 tests
 python3 -m pytest -q tests/test_splits.py     # 723 tests
 python3 -m pytest -q tests/test_difficulty.py # 163 tests
+python3 -m pytest -q tests/test_statistics.py # 115 tests
 
 PYTHONPATH=src python3 -m eval_dataset_forge build-splits \
     --dataset datasets/fixtures/qa_toy/examples.jsonl \
     --strategy adversarial --quarantine-blocking --fail-on-leakage \
     --out results/processed/qa_toy_adversarial
+
+PYTHONPATH=src python3 -m eval_dataset_forge stats \
+    --dataset datasets/fixtures/qa_toy/examples.jsonl \
+    --simulate --fail-on-unstable-ranking          # exits 1, by design
 
 PYTHONPATH=src python3 -m eval_dataset_forge smoke --out results/reports/smoke_audit.md  # Milestone 12</code></pre>
 

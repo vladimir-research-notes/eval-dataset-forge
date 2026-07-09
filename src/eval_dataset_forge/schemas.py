@@ -237,6 +237,14 @@ class BootstrapResult(ForgeModel):
     ``ci_low`` must not exceed ``ci_high``. The point estimate is the metric on
     the full sample; the interval comes from ``n_resamples`` resamples at the
     given ``seed``.
+
+    ``method`` and ``resample_unit`` are not decoration. A percentile interval and
+    a BCa interval over the same resamples are different intervals, and an interval
+    that resampled *examples* assumes an independence that one resampling *blocks*
+    does not (see :mod:`eval_dataset_forge.statistics.bootstrap`). A stored result
+    that omitted them could not be compared with another, so they travel with it.
+    ``method`` records what actually ran: a BCa request that hit a degenerate case
+    is written ``"bca->percentile"``.
     """
 
     metric: NonEmptyStr
@@ -245,6 +253,9 @@ class BootstrapResult(ForgeModel):
     ci_high: float
     n_resamples: int = Field(ge=1)
     seed: int = 0
+    system: str | None = None
+    method: str = "percentile"
+    resample_unit: str = "example"
 
     @model_validator(mode="after")
     def _check_interval(self) -> BootstrapResult:

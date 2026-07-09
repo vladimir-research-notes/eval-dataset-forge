@@ -29,3 +29,18 @@ the split builder (Milestone 7) runs. A `mislabeled` answer is included as a
 documented limitation: a well-formed but factually wrong gold answer is generally
 not detectable by the label-audit heuristics, and is marked
 `auto_detectable: false` in `defects.yaml`.
+
+## `system_scores.jsonl` (Milestone 9)
+
+A committed, inspectable example of the per-example score file that
+`evalforge stats --scores` consumes: three systems × 14 examples, one JSON record
+per `(example, system)` pair.
+
+**The scores are synthetic and describe no real system.** They come from the Rasch
+simulator in `eval_dataset_forge.statistics.simulate` at seed 0, and exist so a
+reader can see the input format without running a model. No conclusion about any
+model may be drawn from them.
+
+Regenerate with `python3 scripts/make_demo_scores.py` (deterministic and
+byte-identical); `python3 scripts/make_demo_scores.py --check` and
+`tests/test_statistics.py` fail if the file drifts from its generator.

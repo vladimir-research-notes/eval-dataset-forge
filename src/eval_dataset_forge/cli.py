@@ -214,6 +214,52 @@ def cmd_difficulty(args: argparse.Namespace) -> int:
     return 1 if args.fail_on_uncalibrated and not report.trustworthy else 0
 
 
+def cmd_stats(args: argparse.Namespace) -> int:
+    """Bootstrap CIs, paired comparisons, and ranking stability for a set of systems.
+
+    Takes one or more dataset files (pooled in order, so the fixture corpus can be analysed
+    as one benchmark) plus either real per-example scores (``--scores``) or deterministic
+    synthetic ones (``--simulate``, which describes no real system and says so in the
+    report). Exit code is 0 unless ``--fail-on-unstable-ranking`` is set and the leaderboard's
+    ordering is not supported by the data — the check a CI job would gate a leaderboard claim
+    on. On the committed fixtures with simulated systems that gate **fails**, by design: see
+    docs/STATISTICS.md. The statistics package is imported lazily so the stdlib-only commands
+    keep working without the scientific stack.
+    """
+    from eval_dataset_forge.datasets import loader
+    from eval_dataset_forge.statistics import (
+        analyze_dataset,
+        format_report,
+        load_scores,
+        write_report,
+    )
+
+    examples = [ex for path in args.dataset for ex in loader.load_examples(path)]
+    report = analyze_dataset(
+        examples,
+        score_table=load_scores(args.scores) if args.scores else None,
+        simulate_seed=args.seed if args.simulate else None,
+        scores_source=args.scores or "",
+        near_require_same_answer=not args.ignore_answer_gate,
+        resample_unit=args.resample_unit,
+        ci_method=args.ci_method,
+        alpha=args.alpha,
+        power=args.power,
+        n_resamples=args.resamples,
+        seed=args.seed,
+    )
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_report(report))
+
+    if args.out:
+        written = write_report(report, args.out)
+        print(f"\nwrote {len(written)} statistics artifact(s) under {args.out}")
+    return 1 if args.fail_on_unstable_ranking and not report.ranking_resolved else 0
+
+
 def _cmd_pending(name: str):
     def handler(_args: argparse.Namespace) -> int:
         milestone = _PENDING[name]
@@ -351,6 +397,71 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit the report as JSON instead of text"
     )
     p_difficulty.set_defaults(func=cmd_difficulty)
+
+    p_stats = sub.add_parser(
+        "stats",
+        help="bootstrap CIs, paired comparisons, and ranking stability for scored systems",
+    )
+    p_stats.add_argument(
+        "--dataset",
+        required=True,
+        action="append",
+        metavar="PATH",
+        help="path to examples.jsonl; repeat to pool several datasets into one benchmark",
+    )
+    source = p_stats.add_mutually_exclusive_group(required=True)
+    source.add_argument(
+        "--scores",
+        metavar="PATH",
+        help="JSONL of per-example system scores "
+        "({example_id, system, score} or {example_id, scores:{…}})",
+    )
+    source.add_argument(
+        "--simulate",
+        action="store_true",
+        help="generate deterministic synthetic systems instead (offline demo; the scores "
+        "describe no real system and no conclusion about one may be drawn from them)",
+    )
+    p_stats.add_argument("--out", help="directory for stats_report.json")
+    p_stats.add_argument(
+        "--resample-unit",
+        default="block",
+        choices=["block", "example"],
+        help="what one bootstrap draw pulls: a duplicate block (default, corrects for "
+        "within-cluster dependence) or a single example (the i.i.d. assumption)",
+    )
+    p_stats.add_argument(
+        "--ci-method",
+        default="percentile",
+        choices=["percentile", "bca"],
+        help="interval method; bca is offered but not the default (see docs/STATISTICS.md)",
+    )
+    p_stats.add_argument(
+        "--seed", type=int, default=0, help="seed for the resampling and for --simulate"
+    )
+    p_stats.add_argument(
+        "--resamples", type=int, default=2_000, help="bootstrap / permutation resamples"
+    )
+    p_stats.add_argument(
+        "--alpha", type=float, default=0.05, help="two-sided significance level (default: 0.05)"
+    )
+    p_stats.add_argument(
+        "--power", type=float, default=0.8, help="power used by the small-N arithmetic"
+    )
+    p_stats.add_argument(
+        "--ignore-answer-gate",
+        action="store_true",
+        help="let the near-duplicate stage pair examples with differing gold answers",
+    )
+    p_stats.add_argument(
+        "--fail-on-unstable-ranking",
+        action="store_true",
+        help="exit 1 when the leaderboard's ordering is not supported by the data",
+    )
+    p_stats.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_stats.set_defaults(func=cmd_stats)
 
     p_card = sub.add_parser("dataset-card", help="generate a dataset card for a release")
     p_card.add_argument("--release", required=True, help="path to a release directory")

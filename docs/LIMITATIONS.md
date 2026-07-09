@@ -95,18 +95,64 @@ is missing scores at the floor of the `output_complexity` signal and therefore l
 *easy*. The two lowest-scoring examples in the corpus are both examples with an absent
 gold answer.
 
+## The i.i.d. bootstrap is wrong on a corpus with duplicates, and ours still is — a little
+
+The textbook bootstrap resamples examples and assumes they are independent. A
+deterministic system scores every member of an exact-duplicate cluster identically, so the
+within-cluster correlation is 1 *by construction*. Measured against known ground truth
+(3000 trials, nominal 0.95): the i.i.d. percentile interval covers **0.882** at a true
+accuracy of 0.70; resampling the duplicate blocks instead recovers **0.937**. So the
+cluster bootstrap is the default, and the pooled corpus's 56 examples are reported as worth
+≈ 36 independent ones.
+
+The correction reaches only as far as the dedup ladder can see. `ret-001`/`ret-002` is a
+paraphrase pair no lexical threshold detects ([`DEDUPLICATION.md`](DEDUPLICATION.md)), so it
+yields no block edge and is resampled as if independent. **The reported design effect is a
+lower bound and the intervals remain slightly too narrow.** Milestone 4's recall bound is
+Milestone 9's correction bound.
+
+Two further caveats. The percentile bootstrap under-covers at extreme accuracies whatever
+the resampling unit (0.910 at *p* = 0.90 on 56 i.i.d. examples), and BCa does not reliably
+repair it — at *p* = 0.95 it makes coverage *worse* (0.926 → 0.830), which is why it is
+offered but not the default. And `minimum_detectable_effect` / `required_n` are normal
+approximations to a trinomial quantity: a scale, not a promise. See
+[`STATISTICS.md`](STATISTICS.md).
+
+## A bootstrap "win fraction" is not a p-value
+
+The widespread rule *"A beats B if A wins ≥ 95% of the bootstrap resamples"* is a
+one-sided threshold, applied in whichever direction the data happened to favour. Its
+measured type-I error under a true null is **11.4%** against a nominal 5%. This tool reports
+the win fraction because readers expect it and **decides** with a Holm-corrected,
+cluster-aware sign-flip permutation test — which is itself conservative on paired binary
+scores (0.029 at nominal 0.05), because most examples are ties.
+
+A bootstrap CI can exclude zero while that test declines to reject. The two use different
+nulls; the report warns about the disagreement rather than settling it by quoting the
+friendlier number.
+
 ## Statistics quantify sampling noise only
 
 Bootstrap CIs and ranking-stability checks describe uncertainty over the *given*
 examples. They say nothing about whether those examples are representative of the
-real task, and they are simple percentile/resampling methods without coverage
-corrections we cannot justify on this data.
+real task. No amount of resampling can recover that; the rest of the audit exists
+for it.
+
+The demo's system scores are **synthetic**, produced by a Rasch simulator so the machinery
+can run offline and so the coverage tests have a true parameter to check against. The block
+structure is real; the systems are not. No claim about any model is made from them.
 
 ## Small datasets
 
 The toy fixtures are tiny by design. Some methods (stratification, ranking
 stability) are inherently limited at small N; the tool reports achieved
 distributions and instability warnings rather than pretending otherwise.
+
+Concretely, on the pooled corpus the smallest system gap detectable at 80% power is **0.321
+accuracy points**, the demo's observed top-2 gap is 0.036, and deleting **two examples** —
+one duplicate cluster — reverses the leaderboard. `ranking_resolved` is False and
+`evalforge stats --fail-on-unstable-ranking` exits 1, rather than printing an ordering the
+data cannot support.
 
 ## Non-goals
 

@@ -46,7 +46,7 @@
     <tr><td><a href="label-audit.html">label-audit</a> <span class="status done">M6</span></td><td>missing, conflicting, ambiguous, format, adjudication</td><td>exact + heuristic</td></tr>
     <tr><td><a href="difficulty.html">difficulty</a> <span class="status done">M8</span></td><td>surface score, buckets, and a calibration verdict on the score itself</td><td>heuristic — and <strong>uncalibrated</strong> on these fixtures</td></tr>
     <tr><td><a href="splits.html">splits</a> <span class="status done">M7</span></td><td>sizes, distributions, residual cross-split leakage</td><td>exact, given the dedup clusters</td></tr>
-    <tr><td>statistics</td><td>bootstrap CIs, paired comparison, ranking stability</td><td>resampling</td></tr>
+    <tr><td><a href="statistics.html">statistics</a> <span class="status done">M9</span></td><td>bootstrap CIs, paired comparison, ranking stability, small-N warnings</td><td>resampling — <strong>cluster-aware</strong>, and a lower bound on the dependence</td></tr>
   </table>
 
   <h2>Design principles</h2>
@@ -74,18 +74,26 @@ evalforge smoke --out results/reports/smoke_audit.md   # all fixtures at once</c
     <li>docs/METHODOLOGY.md</li>
   </ul>
   <h3>Status</h3>
-  <p>Six stages are implemented: <a href="validation.html">validate</a> (M3),
+  <p>Seven stages are implemented: <a href="validation.html">validate</a> (M3),
   <a href="deduplication.html">dedup</a> (M4), <a href="leakage.html">leakage</a> (M5),
   <a href="label-audit.html">label-audit</a> (M6), <a href="splits.html">splits</a> (M7),
-  and <a href="difficulty.html">difficulty</a> (M8). The stages are separable but not
+  <a href="difficulty.html">difficulty</a> (M8), and
+  <a href="statistics.html">statistics</a> (M9). The stages are separable but not
   independent, and the couplings are load-bearing: <em>leakage</em> consumes the dedup
   ladder's clusters to find cross-split overlap; <em>splits</em> re-runs those same leakage
-  checks over its own output to verify what it built; and <em>difficulty</em> inherits a
+  checks over its own output to verify what it built; <em>difficulty</em> inherits a
   defect from <em>label-audit</em> — an example with a missing gold answer scores at the
-  floor of the output-complexity signal and therefore looks easy. The audit pipeline passes
-  one dedup report through rather than paying for the ladder repeatedly.</p>
-  <p><a href="statistics.html">statistics</a> lands in Milestone 9; the report and
-  end-to-end smoke audit are assembled in Milestones 11–12.</p>
+  floor of the output-complexity signal and therefore looks easy; and <em>statistics</em>
+  resamples the very blocks <em>splits</em> builds, because a duplicate cluster is not an
+  independent example and a confidence interval that pretends otherwise is too narrow. The
+  audit pipeline passes one dedup report through rather than paying for the ladder
+  repeatedly.</p>
+  <p>Two couplings run the other way, as inherited bounds rather than inherited data. The
+  adversarial split's zero-leakage guarantee is exactly as strong as the near-duplicate
+  stage's recall; and for the same reason the statistics stage's design effect is a
+  <em>lower bound</em> — dependence the dedup ladder cannot see produces no block, so it
+  cannot widen an interval either.</p>
+  <p>The report and end-to-end smoke audit are assembled in Milestones 11–12.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>
