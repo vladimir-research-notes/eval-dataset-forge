@@ -49,7 +49,7 @@
     <tr><td>3</td><td>Validation &amp; redaction</td><td>schema validation, ID uniqueness, missing-field checks, fake-secret detection, PII redaction, safe-data checks</td><td><span class="status done">done</span></td></tr>
     <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status done">done</span></td></tr>
     <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status done">done</span></td></tr>
-    <tr><td>6</td><td>Label audit</td><td>missing / conflicting / ambiguous / format checks; adjudication queue export</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>6</td><td>Label audit</td><td>missing / conflicting / ambiguous / format checks; adjudication queue export</td><td><span class="status done">done</span></td></tr>
     <tr><td>7</td><td>Split builder</td><td>random, stratified (family/difficulty), source-grouped, adversarial</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>8</td><td>Difficulty calibration</td><td>transparent heuristics + difficulty distribution reports</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>9</td><td>Statistics &amp; ranking stability</td><td>bootstrap CIs, paired comparison, ranking stability, small-N warnings</td><td><span class="status pending">planned</span></td></tr>
@@ -142,10 +142,27 @@
   buried: the n-gram channel is redundant on these fixtures, and one reported overlap
   contradicts the fixture ground truth. See the <a href="leakage.html">Leakage</a> page.</p>
 
-  <h3>Milestone 6 — Label audit</h3>
-  <p>Detect missing, conflicting, ambiguous, and inconsistently formatted labels;
-  summarize inter-annotator disagreement; export a deterministic adjudication
-  queue. Nothing is auto-corrected.</p>
+  <h3>Milestone 6 — Label audit <span class="status done">done</span></h3>
+  <p>Five checks, one per <code>LabelIssue</code>: missing, conflicting, ambiguous,
+  inconsistent format, and a derived adjudication flag. <strong>15/15 auto-detectable
+  planted label defects recovered, zero false positives.</strong> Conflict has three
+  sources, and the third earns its keep: retrieval examples label relevance twice — as a
+  gold doc-id list, and as flags on their own passages — so comparing the two as
+  <em>sets</em> recovers <code>ret-004</code> (a passage marked relevant while the gold
+  list names none) while leaving <code>ret-005</code> clean (an unanswerable query whose
+  empty gold list is the right answer). Both carry an empty <code>expected_output</code>;
+  a rule keyed on emptiness gets one of them wrong, and no other stage in the pipeline
+  sees <code>ret-004</code> at all. The one fuzzy check is <em>calibrated against
+  withheld ground truth</em>: strip every <code>ambiguous</code> tag and the lexical
+  heuristic recovers 4 of 6 with no false positives, with both guards shown load-bearing
+  (dropping the wh-word guard admits "What is 2 + 2?"; dropping the scalar-gold gate
+  admits "Name a noble gas."). The adjudication queue follows a single rule — blocking
+  iff no resolution can be proposed — and exports byte-identically across runs. Three
+  honest negatives are documented rather than buried: the shared-prompt conflict channel
+  fires on nothing, the widths 4–7 "plateau" is fixture sparsity rather than a basin, and
+  the three planted <code>mislabeled</code> defects are invisible to every check by
+  construction — pinned by a regression test. See the
+  <a href="label-audit.html">Label audit</a> page.</p>
 
   <h3>Milestone 7 — Split builder</h3>
   <p>Construct splits with a recorded, reproducible <code>SplitSpec</code>:

@@ -29,44 +29,186 @@
   </nav>
 </header>
 <main>
-  <p><span class="status pending">implemented in Milestone 6</span></p>
+  <p><span class="status done">Milestone 6 — done</span></p>
   <h1>Label audit &amp; adjudication</h1>
-  <p class="lede">Label noise caps any measurable accuracy and biases system
-  comparisons. The audit surfaces defects and queues ambiguous cases for a human;
-  it never rewrites a label.</p>
+  <p class="lede">Label noise caps any accuracy a benchmark can measure and biases
+  every comparison drawn from it. This stage surfaces label defects and queues the
+  ones a machine cannot resolve for a human. It never rewrites a label.</p>
 
-  <h2>Checks</h2>
+  <h2>Five checks</h2>
+  <p>Each public check emits exactly one <code>LabelIssue</code> — a property the
+  tests enforce, along with the converse: no kind is declared in the schema without
+  a check that can emit it.</p>
   <table>
-    <tr><th>check</th><th>fires when</th><th>type</th></tr>
-    <tr><td>missing</td><td>required label / expected output empty</td><td>exact</td></tr>
-    <tr><td>conflicting</td><td>annotators disagree, or identical inputs → different outputs</td><td>exact</td></tr>
-    <tr><td>ambiguous</td><td>under-specified gold answer / <code>ambiguous</code> tag</td><td>heuristic</td></tr>
-    <tr><td>inconsistent format</td><td>mixed label shapes within a task family</td><td>heuristic</td></tr>
-    <tr><td>needs adjudication</td><td>any of the above requiring a human decision</td><td>routing</td></tr>
+    <tr><th>check</th><th>certainty</th><th>catches</th><th>recall</th></tr>
+    <tr><td>missing</td><td>exact</td><td>no gold answer to score against</td><td>4 / 4</td></tr>
+    <tr><td>conflicting</td><td>exact</td><td>two label sources that disagree</td><td>4 / 4 annotators · 1 / 1 relevance</td></tr>
+    <tr><td>ambiguous</td><td>mixed</td><td>more than one defensible answer</td><td>5 / 5 declared · 4 / 6 lexical</td></tr>
+    <tr><td>inconsistent format</td><td>heuristic</td><td>a gold answer unlike its family's</td><td>2 / 2</td></tr>
+    <tr><td>needs adjudication</td><td>derived</td><td>an issue only a human can resolve</td><td>—</td></tr>
   </table>
+  <p><strong>15 / 15 auto-detectable planted <code>label_issues</code> recovered, 0 false
+  positives</strong> across the five fixtures (56 examples, 16 flagged, 14 blocking). The
+  relevance conflict is counted separately because <code>retrieval_toy</code> files it under
+  <code>relevance_issues</code> rather than <code>label_issues</code>; the
+  <em>lexical</em> ambiguity figure is what the heuristic finds with every declaration
+  withheld.</p>
 
-  <h2>Inter-annotator disagreement</h2>
-  <p>When examples carry multiple annotator labels, we report simple, hard-to-
-  misread quantities: raw agreement rate and per-example disagreement flags.
-  Agreement coefficients (kappa) are a candidate future addition.</p>
+  <p>Ambiguity is <em>mixed</em> because it fuses two things: an <code>ambiguous</code>
+  entry in <code>difficulty_tags</code> is an exact reading of a <em>declaration</em>,
+  while the underspecified-prompt and open-set-request signals are lexical heuristics.
+  Every finding's <code>detail</code> records which signal fired.</p>
+
+  <div class="callout">Stage order is load-bearing, unlike the leakage channels.
+  <code>missing</code> runs first: an absent answer has no format, and must not enter
+  the shape census the format check measures every other answer against.</div>
+
+  <h2>Deeper: three ways two labels disagree</h2>
+  <p>A conflict is not a wrong label. It is <em>two label sources that cannot both be
+  right</em> — a strictly weaker and strictly checkable claim.</p>
+  <ol>
+    <li><strong>Annotators of one example.</strong> The finding records whether a strict
+    majority exists, because that decides whether a human must look at it. All four
+    planted conflicts are 2-annotator ties, so none resolves automatically.</li>
+    <li><strong>Two examples, one prompt.</strong> Consumes
+    <code>dedup.duplicate_input_clusters</code>, the superset the deduplication ladder
+    exposes precisely so this stage can take the difference: a shared prompt with an
+    identical answer is a duplicate to drop; with a differing answer it is a conflict to
+    adjudicate. <em>On these fixtures the difference is empty</em> — all four
+    shared-prompt clusters are true duplicates. An honest null result, asserted by a
+    test and exercised by a synthetic pair.</li>
+    <li><strong>One example, two relevance channels.</strong> Retrieval examples label
+    relevance twice — as a gold doc-id list, and as <code>relevant</code> flags on their
+    own passages. Two encodings of one quantity, so they can contradict each other.</li>
+  </ol>
+
+  <h3>The check that distinguishes two look-alikes</h3>
+  <p>Both <code>ret-004</code> and <code>ret-005</code> carry an empty
+  <code>expected_output</code>. A rule keyed on emptiness flags both — and would be wrong
+  about one of them.</p>
+  <table>
+    <tr><th>example</th><th>gold list</th><th>passages marked relevant</th><th>verdict</th></tr>
+    <tr><td><code>ret-004</code></td><td><code>[]</code></td><td><code>{d9}</code></td><td><strong>conflict</strong> — an incomplete relevance set</td></tr>
+    <tr><td><code>ret-005</code></td><td><code>[]</code></td><td><code>{}</code></td><td>clean — an unanswerable query, correctly labelled</td></tr>
+  </table>
+  <p>Comparing the two channels as <strong>sets</strong> separates them with no special
+  case: an empty gold list agreeing with zero relevant passages is agreement, not an
+  absence. <code>ret-004</code> is the planted <code>incomplete_relevance</code> defect,
+  and <strong>no other stage in the pipeline sees it</strong>.</p>
+
+  <h2>Deeper: calibrating the ambiguity heuristic</h2>
+  <p>A declaration is exact and free. The question a real dataset poses is the one where
+  nobody has tagged anything: <em>would we have found these without being told?</em>
+  Withholding every <code>ambiguous</code> tag from all 56 examples:</p>
+  <table>
+    <tr><th>max tokens</th><th>flagged</th><th>recovered (of 6 declared)</th><th>false positives</th></tr>
+    <tr><td>3</td><td>2</td><td>2</td><td>0</td></tr>
+    <tr><td><strong>4 (default)</strong></td><td><strong>4</strong></td><td><strong>4</strong></td><td><strong>0</strong></td></tr>
+    <tr><td>5 – 7</td><td>4</td><td>4</td><td>0</td></tr>
+    <tr><td>8</td><td>5</td><td>4</td><td>1 (<code>bio-004</code>)</td></tr>
+  </table>
+  <p>Widths 4–7 agree, but that is <strong>a sparsity plateau, not a robustness basin</strong>:
+  no fixture prompt of 5–7 tokens passes the guards. The default is therefore the
+  <em>smallest</em> width attaining full reachable recall, not the middle of a basin we
+  have evidence for.</p>
+
+  <h3>Both guards are load-bearing</h3>
+  <p>Two signals fire — a <em>dangling reference</em> (≤ 4 tokens, no wh-word) and an
+  <em>open-set request</em> ("Name a primary color.") — and both are gated on a scalar
+  gold answer. Each guard prevents exactly one false positive:</p>
+  <ul>
+    <li>Drop the <strong>wh-word guard</strong> and <code>qa-005</code> ("What is 2 + 2?")
+    is called ambiguous.</li>
+    <li>Drop the <strong>scalar-gold gate</strong> and <code>ret-004</code> ("Name a noble
+    gas.") is called ambiguous.</li>
+  </ul>
+  <p>The second is the interesting one. <code>qa-008</code> ("Name a primary color.") and
+  <code>ret-004</code> ("Name a noble gas.") are <strong>the same sentence pattern</strong>;
+  the fixture declares the first ambiguous and not the second. No rule keyed on prompt text
+  alone can separate them. What does separate them is the shape of the gold answer: a
+  list-valued answer can enumerate every acceptable response, so an open-set prompt answered
+  by a set is not under-specified. A test swaps only the answer shape between the two prompts
+  and shows both verdicts flip with it.</p>
+
+  <h3>What it cannot reach</h3>
+  <p>The heuristic recovers 4 of 6 declared-ambiguous examples. The two misses define the
+  ceiling: <code>saf-007</code> is a dual-use request whose ambiguity is a semantic
+  judgement, and <code>ret-005</code> is <em>over</em>-specified rather than
+  under-specified. Declared ambiguity and detectable ambiguity are different sets; the audit
+  reports their union and names the signal.</p>
+
+  <h2>Deeper: format, and inter-annotator agreement</h2>
+  <p>Within a task family: a <strong>shape minority</strong> (a bare string among rubric
+  dicts — <code>agent-011</code>) and a <strong>vocabulary outlier</strong> (<code>"no"</code>
+  among <code>comply</code>/<code>refuse</code> — <code>saf-010</code>, reusing Milestone 5's
+  <code>label_vocabulary</code>). Shape, <em>not</em> key set: the agent fixture's coding tasks
+  carry <code>{reference_solution, success_criteria}</code> and its research tasks
+  <code>{reference_answer}</code>, a legitimate per-subtype schema a key-set check would call
+  three defects. Both signals self-disable — the vocabulary is empty on every free-text family,
+  and a family with no dominant shape gets no shape check.</p>
+  <p>Agreement is reported as a raw rate over multiply-annotated examples, not a
+  chance-corrected coefficient. It is <code>None</code>, not <code>0.0</code>, when undefined —
+  those mean opposite things. <strong>On the fixtures it is 0.0</strong>, an artifact of
+  construction: annotations were planted only where a conflict was planted. A test asserts the
+  number so it can never be quoted as if it described a real annotation process.</p>
 
   <h2>Adjudication queue</h2>
-  <p>Flagged examples are exported to a deterministic, diff-friendly
-  <code>adjudication_queue.jsonl</code> with the reason and conflicting values,
-  ready for a human — or a future, disabled-by-default LLM-assisted adjudicator.</p>
+  <p><strong>One rule:</strong> an example is <em>blocking</em> exactly when at least one of
+  its issues has no resolution the audit can propose. Nothing else is special-cased.</p>
+  <table>
+    <tr><th>issue</th><th>proposed resolution</th></tr>
+    <tr><td><code>missing</code></td><td>none — the tool does not know the answer</td></tr>
+    <tr><td><code>ambiguous</code></td><td>none — the tool cannot decide which answer was meant</td></tr>
+    <tr><td><code>conflicting</code></td><td>the strict-majority annotator label, when one exists</td></tr>
+    <tr><td><code>inconsistent_format</code></td><td>convert to the family's dominant shape or vocabulary</td></tr>
+  </table>
+  <p>A relevance conflict blocks even though "copy the flags into the gold list" looks like an
+  obvious fix: it is equally possible that the <em>flag</em> is wrong, and guessing would
+  silently rewrite the benchmark. Of the 16 queued fixture examples, only 2 are non-blocking.</p>
+  <p>Nothing is applied — a proposal is a string in a queue, never an edit. The queue is
+  deterministic (blocking first, then severity, then <code>example_id</code>) and exports as one
+  compact JSON object per line, so two runs produce <strong>byte-identical</strong>
+  <code>adjudication_queue.jsonl</code> files and a reviewer's resolutions diff cleanly.</p>
 
-  <div class="callout warn">Ambiguity detection is heuristic: it both misses
-  subtle ambiguity and over-flags terse-but-correct answers. Every flag is
-  advisory; semantic conflict detection is out of scope offline.</div>
+  <div class="callout warn"><strong>The blind spot that matters most.</strong> This stage sees
+  <em>structure</em>, never <em>truth</em>. Three <code>mislabeled</code> defects are planted and
+  marked <code>auto_detectable: false</code>: <code>qa-006</code> (the chemical symbol for gold
+  given as <code>Ag</code>), <code>bio-009</code> (23 chromosomes in a human somatic cell), and
+  <code>saf-006</code> (a benign vaccine question labelled <code>refuse</code>). All three are
+  well-formed, unanimous, unambiguous and correctly shaped, and <strong>none is found by any
+  check</strong> — a regression test asserts they stay invisible. A mislabeled answer that looks
+  like every other answer is precisely the label defect that does the most damage to a benchmark.
+  Catching it needs a second annotator or a model.</div>
 
   <h3>Relevant files</h3>
   <ul class="files">
-    <li>src/eval_dataset_forge/labels/{audit,disagreement,adjudication}.py</li>
+    <li>src/eval_dataset_forge/labels/audit.py — missing, ambiguous, inconsistent format</li>
+    <li>src/eval_dataset_forge/labels/disagreement.py — the three conflict sources, agreement</li>
+    <li>src/eval_dataset_forge/labels/adjudication.py — blocking rule, queue, JSONL export</li>
+    <li>src/eval_dataset_forge/labels/__init__.py — <code>audit_labels()</code>, report</li>
+    <li>tests/test_labels.py — 144 tests</li>
     <li>docs/LABEL_AUDIT.md</li>
   </ul>
+
   <h3>Status</h3>
-  <p>Design fixed in <code>docs/LABEL_AUDIT.md</code>; implementation lands in
-  Milestone 6.</p>
+  <p>Complete. 144 tests pass; 522 across the suite. There is no
+  <code>evalforge label-audit</code> subcommand — the label audit surfaces through
+  <code>evalforge audit</code> (Milestone 12), keeping the CLI contract stable.</p>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>At <code>max_tokens=8</code> the heuristic flags <code>bio-004</code>, which the ground
+    truth files under <code>conflicting</code>. Its annotators split on <em>drug</em> vs
+    <em>chemical compound</em> — arguably <em>because</em> the prompt never says which taxonomy.
+    That reading makes it a true positive under a different heading. Scored conservatively as a
+    false positive; the default width is not tuned on it either way.</li>
+    <li><code>retrieval_toy</code> plants no <code>label_issues</code>; its two findings map onto
+    the <code>relevance_issues</code> block instead. Counted as recovered under a different
+    heading, not as false positives — but the taxonomy seam is worth a human's eye.</li>
+    <li>The format thresholds (70% dominant share, 4 examples, 3 repeats) are judgement calls.
+    Each is guarded by a test showing what it prevents, but there is only one planted defect per
+    signal, so a calibration sweep would be degenerate.</li>
+  </ul>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

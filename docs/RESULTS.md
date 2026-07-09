@@ -129,6 +129,73 @@ Reproduce:
 python3 -m pytest -q tests/test_leakage.py    # 111 tests
 ```
 
+### Label audit (Milestone 6)
+
+Scored against the `label_issues` ground truth in each fixture's `defects.yaml`. Full
+method, calibration sweep, and failure-mode analysis:
+[`LABEL_AUDIT.md`](LABEL_AUDIT.md).
+
+| check | certainty | recall | false positives |
+|-------|-----------|--------|-----------------|
+| missing | exact | **4 / 4** planted | 0 |
+| conflicting (annotators) | exact | **4 / 4** planted | 0 |
+| conflicting (shared prompt) | exact | n/a (none planted) | 0 |
+| conflicting (relevance channels) | exact | **1 / 1** planted | 0 |
+| ambiguous (declared tag) | exact | **5 / 5** planted | 0 |
+| ambiguous (lexical heuristic, tags withheld) | heuristic | 4 / 6 declared | 0 |
+| inconsistent format | heuristic | **2 / 2** planted | 0 |
+
+**15 / 15 auto-detectable planted label defects recovered, 0 false positives.**
+
+Per-fixture findings at default settings:
+
+| fixture | missing | conflicting | ambiguous | inconsistent format | blocking | examples flagged |
+|---------|---------|-------------|-----------|---------------------|----------|------------------|
+| `qa_toy` | 1 | 1 | 2 | 0 | 4 | 4 / 14 |
+| `agent_tasks_toy` | 1 | 1 | 1 | 1 | 2 | 3 / 12 |
+| `retrieval_toy` | 0 | 1 | 1 | 0 | 2 | 2 / 10 |
+| `bio_toy` | 1 | 1 | 1 | 0 | 3 | 3 / 10 |
+| `safety_toy` | 1 | 1 | 1 | 1 | 3 | 4 / 10 |
+| **all five** | 4 | 5 | 6 | 2 | 14 | 16 / 56 |
+
+Four results are worth stating precisely.
+
+**The stage is blind to the defect that matters most — by construction, and it says so.**
+Three `mislabeled` defects are planted (`qa-006` answers "the chemical symbol for gold"
+with `Ag`; `bio-009` gives a human somatic cell 23 chromosomes; `saf-006` refuses a benign
+vaccine question). All three are well-formed, unanimous, unambiguous, and correctly shaped,
+and **none is found by any check**. A regression test asserts they stay invisible so the
+limitation cannot rot into a silent claim of coverage. Label *truth* needs a second
+annotator or a model; this stage sees only structure.
+
+**A check that exists to distinguish two look-alikes.** `ret-004` and `ret-005` both carry
+an empty `expected_output`. `ret-004` is a defect — a passage is marked relevant while the
+gold doc-id list names none. `ret-005` is correct — an unanswerable, over-specific query
+that no candidate passage answers, so an empty gold list is the right answer. A rule keyed
+on emptiness flags both. Comparing the two relevance channels as **sets** separates them
+without a special case, and recovers the planted `incomplete_relevance` defect that no
+other stage in the pipeline sees.
+
+**The ambiguity heuristic is honest about its ceiling.** With every `ambiguous` tag
+withheld, it recovers 4 of 6 declared-ambiguous examples with zero false positives. Both of
+its guards are load-bearing — dropping the wh-word guard admits `qa-005` ("What is 2 + 2?"),
+dropping the scalar-gold gate admits `ret-004` — and both facts are pinned by tests. The two
+it misses are unreachable in principle: `saf-007` is a semantic dual-use judgement, and
+`ret-005` is *over*-specified rather than under-specified. Declared ambiguity and detectable
+ambiguity are different sets.
+
+**The shared-prompt conflict channel fires on nothing — an honest null result.** All four
+byte-identical-prompt clusters in the corpus agree on their gold answers, i.e. they are
+duplicates, not conflicts. `dedup.duplicate_input_clusters` exists precisely so this stage
+can take that difference, and on these fixtures the difference is empty. The channel is
+exercised by a synthetic pair, and the null result is asserted by a test.
+
+Reproduce:
+
+```bash
+python3 -m pytest -q tests/test_labels.py     # 144 tests
+```
+
 ## What will be reported here
 
 - Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII

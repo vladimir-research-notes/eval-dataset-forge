@@ -65,7 +65,18 @@
     <tr><td>answer-in-prompt</td><td>heuristic</td><td>2 / 2</td><td>0</td></tr>
     <tr><td>reference n-gram overlap</td><td>exact given n=8</td><td>n/a (none planted)</td><td>0</td></tr>
     <tr><td>retrieval contamination</td><td>exact</td><td>1 / 1</td><td>0</td></tr>
+    <tr><td rowspan="5"><a href="label-audit.html">label audit</a> <span class="status done">M6</span></td><td>missing</td><td>exact</td><td>4 / 4</td><td>0</td></tr>
+    <tr><td>conflicting (annotators)</td><td>exact</td><td>4 / 4</td><td>0</td></tr>
+    <tr><td>conflicting (relevance channels)</td><td>exact</td><td>1 / 1</td><td>0</td></tr>
+    <tr><td>ambiguous (lexical, tags withheld)</td><td>heuristic</td><td>4 / 6 declared</td><td>0</td></tr>
+    <tr><td>inconsistent format</td><td>heuristic</td><td>2 / 2</td><td>0</td></tr>
   </table>
+  <p>The label audit recovers <strong>15 of 15</strong> auto-detectable planted label
+  defects with zero false positives — and is blind, by construction, to the three planted
+  <code>mislabeled</code> answers (<code>qa-006</code>, <code>bio-009</code>,
+  <code>saf-006</code>), which are well-formed, unanimous, unambiguous and correctly
+  shaped. That blindness is asserted by a regression test rather than left implicit: label
+  <em>truth</em> needs a second annotator or a model.</p>
   <p>Across all four leakage channels, <strong>12 of 12</strong> planted leakage defects
   are recovered — including <code>ret-001</code>~<code>ret-002</code>, which the dedup
   ladder is provably blind to and which the passage-level check finds anyway. Per-kind,

@@ -68,6 +68,16 @@
       conventions, not a general detector; and paraphrased duplicate passages are not
       detected at all. The label-vocabulary guard deliberately trades a false positive
       for a false negative, and prints what it ignored.</li>
+    <li><strong>The <a href="label-audit.html">label audit</a> sees structure, never
+      truth.</strong> A mislabeled gold answer that is well-formed, unanimous,
+      unambiguous, and correctly shaped is invisible to every check in the stage — and it
+      is the label defect that does the most damage to a benchmark. Three such defects are
+      planted in the fixtures (<code>qa-006</code>, <code>bio-009</code>,
+      <code>saf-006</code>), marked <code>auto_detectable: false</code>, and asserted by a
+      regression test to stay undetected. Catching them needs a second annotator or a
+      model. Ambiguity detection is lexical, so it misses ambiguity that is semantic or
+      <em>over</em>-specified; conflict detection compares values lexically, so two
+      annotators writing "a drug" and "pharmaceutical" are recorded as disagreeing.</li>
   </ul>
 
   <h2>Non-goals</h2>
