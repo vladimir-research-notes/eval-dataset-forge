@@ -321,7 +321,7 @@ dataset is fine.
 ## Reproduce
 
 ```bash
-python3 -m pytest -q tests/test_contracts.py            # 50 tests
+python3 -m pytest -q tests/test_contracts.py            # 51 tests
 
 evalforge gate --list
 evalforge gate --release datasets/releases/qa_toy_v0.1.0 --profile llm-regression   # exit 1

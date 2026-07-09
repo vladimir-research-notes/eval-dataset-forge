@@ -496,9 +496,11 @@ python3 -m pytest -q tests/test_statistics.py # 115 tests
 python3 -m pytest -q tests/test_release.py    # 72 tests
 python3 -m pytest -q tests/test_reports.py    # 64 tests
 python3 -m pytest -q tests/test_audit.py      # 49 tests
-python3 -m pytest -q tests/test_docs.py       # 70 tests
+python3 -m pytest -q tests/test_docs.py       # 81 tests
+python3 -m pytest -q tests/test_hygiene.py    # 12 tests
 
-python3 scripts/verify_docs.py               # the docs match the code; exit 1 if not
+python3 scripts/verify_docs.py               # the docs match the code, incl. the module tree; exit 1 if not
+python3 scripts/hygiene_scan.py              # no secrets/keys/weights/oversized tracked files; exit 1 if not
 
 python3 scripts/split_identity_experiment.py --seeds 400   # the table above
 
@@ -525,7 +527,7 @@ PYTHONPATH=src python3 -m eval_dataset_forge audit \
     --dataset datasets/fixtures/qa_toy/examples.jsonl \
     --out results/audits/qa_toy/
 
-python3 -m pytest -q tests/test_contracts.py   # 50 tests
+python3 -m pytest -q tests/test_contracts.py   # 51 tests
 
 PYTHONPATH=src python3 -m eval_dataset_forge gate --list
 PYTHONPATH=src python3 -m eval_dataset_forge gate \
@@ -537,6 +539,13 @@ PYTHONPATH=src python3 -m eval_dataset_forge gate \
   committed fixtures. The full run is <code>evalforge smoke</code>; the summary it writes
   is <code>results/reports/smoke_audit.md</code> (gitignored — it regenerates
   byte-for-byte, and carries no timestamp). See <code>docs/RESULTS.md</code>.</p>
+  <p>Milestone 15 ran the whole gate clean — 1852 tests, <code>ruff</code>, fixture validation,
+  smoke, the demo-release rebuild, and the documentation auditor — and closed two gaps it exposed:
+  an <code>adapters/</code> package the architecture diagram named but no one built (now caught by
+  <a href="claims.html">the eleventh documentation check</a>), and a hygiene scan
+  (<code>scripts/hygiene_scan.py</code>) the safety docs referenced but did not ship. Rebuilding the
+  committed <code>qa_toy</code> release without scikit-learn preserves <code>content_id</code>,
+  <code>eval_id</code>, and every split byte — only the artifacts that name the detector move.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

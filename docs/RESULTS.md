@@ -773,7 +773,7 @@ that passes.
 Reproduce:
 
 ```bash
-python3 -m pytest -q tests/test_contracts.py               # 50 tests
+python3 -m pytest -q tests/test_contracts.py               # 51 tests
 PYTHONPATH=src python3 -m eval_dataset_forge gate --list
 PYTHONPATH=src python3 -m eval_dataset_forge gate \
   --release datasets/releases/qa_toy_v0.1.0 --profile llm-regression   # exit 1
@@ -868,8 +868,80 @@ Reproduce:
 
 ```bash
 python3 scripts/verify_docs.py                # exit 1 on any unsupported claim
-python3 -m pytest -q tests/test_docs.py       # 70 tests
+python3 -m pytest -q tests/test_docs.py       # 81 tests
 ```
+
+## Milestone 15 — final cleanup
+
+The full gate runs clean: **1852 tests**, `ruff`, fixture validation, the smoke audit, the demo
+release rebuild, `verify-release` at 10/10, and the documentation auditor all green, offline. Running
+it surfaced two defects, both the shape Milestone 14 named — a claim in a document with no way to
+fail — one level down from prose, in the repository's description of its own code.
+
+### A package the diagram named and no one built
+
+`docs/PLAN.md` §4 draws the package tree. It declared an `adapters/` package with `mock_llm.py` and
+`api_stub.py`, and §9 described a `MockLLMLabeler` "used by tests" and an `ApiLabelerStub`. None was
+ever written. The label audit turned out to be deterministic heuristics over the committed
+annotations, and no other stage calls a model either, so there was no model call for a mock to stand
+in for. The auditor's ten checks read what the docs *say* — numbers, commands, links, ids — and none
+read what the tree *is*, so the false lines passed every check since the Milestone 0 scaffold.
+
+`check_package_layout` is the eleventh check. It verifies every module the §4 diagram names against
+the tree, and its first run reported exactly three violations:
+
+```text
+[package-layout]
+  docs/PLAN.md:142: the layout declares package src/eval_dataset_forge/adapters/, which does not exist
+  docs/PLAN.md:142: the layout declares module src/eval_dataset_forge/adapters/mock_llm.py, which does not exist
+  docs/PLAN.md:142: the layout declares module src/eval_dataset_forge/adapters/api_stub.py, which does not exist
+```
+
+The diagram was corrected, not back-filled with dead code, and `docs/METHODOLOGY.md` and
+`docs/PLAN.md` §3/§9 were corrected with it. The check is **one-directional** by design: it flags a
+module the diagram declares and the tree lacks, and is silent about a module the tree holds and the
+diagram omits (`contracts/`, `smoke.py`, `scoring.py` are real and unlisted). A layout diagram is a
+curated sketch; demanding it be exhaustive would make the check assert something false. It proves the
+diagram names no vaporware; it does not prove the diagram is complete.
+
+### A hygiene scan the safety docs referenced but did not ship
+
+`docs/SAFETY.md` pointed at "the hygiene check in Milestone 15", which did not exist — the same
+defect again. `scripts/hygiene_scan.py` (`eval_dataset_forge.hygiene`) now audits the do-not-commit
+contract against the tracked tree: no file `.gitignore` would ignore yet git tracks, no forbidden
+secret/key/weight path, nothing above a 512 KiB tracked-file cap. It is **allowlist-free** — an
+exemption list grows quietly — and it checks *which files exist*, not their contents. Content
+secret-detection stays in the [validation layer](VALIDATION.md), which is tested against fixtures
+that hold fake AWS keys and private-key headers on purpose; a repo-wide secret grep would flag those
+very fixtures. On this repository it scans every tracked file (197 today, largest ~51 KiB) and
+reports no violations.
+
+```bash
+python3 scripts/hygiene_scan.py               # exit 1 on any contract violation
+python3 -m pytest -q tests/test_hygiene.py    # 12 tests
+```
+
+### The demo release reproduces, and the detector reaches only its own description
+
+Milestone 13 measured that on `bio_toy` the presence of scikit-learn changes `eval_id`. On the
+committed `qa_toy` release the two detectors *agree* about the split — the near cluster `qa-003` +
+`qa-004` + `qa-012` is one block under both `tfidf` and `jaccard` — so rebuilding the demo without
+scikit-learn is a sharper result than `REPRODUCE.md`'s general warning admits:
+
+| rebuilt qa_toy v0.1.0 without scikit-learn | outcome |
+|---|---|
+| `content_id`, `eval_id`, `source_content_id` | **unchanged** |
+| `examples.jsonl`, `splits/{train,dev,test}.jsonl` | **byte-identical** |
+| `audit.{json,md}`, `dataset_card.md`, `REPRODUCE.md` | differ — they *name* the detector |
+| `manifest.json` hashes of those four | differ accordingly |
+| `verify-release` | still **10/10** (it runs no detector) |
+
+The disagreement reaches only the artifacts that record which detector ran, never the data or either
+identity. `REPRODUCE.md` warns that a no-scikit-learn rebuild "can produce different splits and a
+different `eval_id`"; that "can" is about the general case, and `test_contracts.py` now pins that on
+*this* release it does not. Five tracked files would show as modified in `git status`, and the
+release would still verify — which is exactly the gap between reproduction (environment-dependent)
+and verification (not).
 
 ## Reproduce
 

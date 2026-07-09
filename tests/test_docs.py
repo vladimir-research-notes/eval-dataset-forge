@@ -29,8 +29,10 @@ import pytest
 
 from eval_dataset_forge.docs_audit import (
     CANDIDATE_RETIRED_CLAIMS,
+    CHECK_NAMES,
     CLAIMS,
     LEDGER_PATH,
+    PACKAGE_ROOT,
     RETIRED_CLAIMS,
     Claim,
     Doc,
@@ -43,6 +45,7 @@ from eval_dataset_forge.docs_audit import (
     check_example_ids,
     check_ledger,
     check_links,
+    check_package_layout,
     check_referenced_paths,
     check_retired_claims,
     check_test_counts,
@@ -50,6 +53,7 @@ from eval_dataset_forge.docs_audit import (
     live_docs,
     mask_code,
     observe_cli_flags,
+    observe_package_layout,
 )
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -82,25 +86,21 @@ def test_the_repository_documentation_has_no_violations(report) -> None:
     assert report.ok, "\n".join(str(v) for v in report.violations)
 
 
-@pytest.mark.parametrize(
-    "check",
-    [
-        "links",
-        "cli-commands",
-        "referenced-paths",
-        "test-counts",
-        "example-ids",
-        "retired-claims",
-        "ledger",
-        "echoes",
-        "claim-commands",
-        "entry-point",
-    ],
-)
+@pytest.mark.parametrize("check", CHECK_NAMES)
 def test_each_check_is_clean_on_this_repository(report, check: str) -> None:
-    """Localises a failure to one check rather than to one 300-line assertion."""
+    """Localises a failure to one check rather than to one 300-line assertion.
+
+    Parametrised over :data:`CHECK_NAMES`, the same tuple ``docs_check_count`` counts, so a check
+    added to :func:`audit_docs` without a name — or a name without a clean result — fails here.
+    """
     grouped = report.by_check()
     assert grouped.get(check, []) == [], "\n".join(str(v) for v in grouped.get(check, []))
+
+
+def test_check_names_is_the_single_source_of_the_check_count() -> None:
+    """The count in the ledger, the parametrised coverage, and the tuple are one number."""
+    assert len(CHECK_NAMES) == 11
+    assert len(set(CHECK_NAMES)) == len(CHECK_NAMES)
 
 
 def test_the_audit_actually_looked_at_something(report) -> None:
@@ -110,6 +110,9 @@ def test_the_audit_actually_looked_at_something(report) -> None:
     assert report.stats["links"] >= 80
     assert report.stats["cli_commands"] >= 100
     assert report.stats["claims"] == len(CLAIMS)
+    assert report.stats["checks"] == len(CHECK_NAMES)
+    # The layout check saw a real tree, not an empty one — the same "looked at something" guard.
+    assert report.stats["declared_modules"] >= 40
 
 
 def test_every_registered_claim_has_a_ledger_row() -> None:
@@ -541,6 +544,94 @@ def test_entry_point_check_catches_a_target_that_is_not_callable(tmp_path: pathl
     violations = check_entry_point(tmp_path)
     assert len(violations) == 1
     assert "not callable" in violations[0].message
+
+
+# --------------------------------------------------------------------------- #
+# package-layout: the diagram names no module that does not exist
+# --------------------------------------------------------------------------- #
+
+_LAYOUT_DOC = (
+    "## Package layout\n\n"
+    "```text\n"
+    f"{PACKAGE_ROOT}/\n"
+    "  schemas.py           models\n"
+    "  datasets/            loader.py · writer.py\n"
+    "  leakage/             ngram_overlap.py ·\n"
+    "                       retrieval_overlap.py\n"
+    "```\n"
+)
+
+_TREE = {
+    "schemas.py",
+    "datasets/",
+    "datasets/loader.py",
+    "datasets/writer.py",
+    "leakage/",
+    "leakage/ngram_overlap.py",
+    "leakage/retrieval_overlap.py",
+}
+
+
+def test_package_layout_is_clean_on_this_repository(report) -> None:
+    assert report.by_check().get("package-layout", []) == []
+
+
+def test_package_layout_check_accepts_a_layout_that_matches_the_tree() -> None:
+    assert check_package_layout([Doc("PLAN.md", _LAYOUT_DOC)], _TREE) == []
+
+
+def test_package_layout_check_catches_a_declared_module_that_is_absent() -> None:
+    """The Milestone 15 defect in miniature: a module named in the diagram, never built."""
+    tree = _TREE - {"datasets/writer.py"}
+    violations = check_package_layout([Doc("PLAN.md", _LAYOUT_DOC)], tree)
+    assert [v.message for v in violations] == [
+        f"the layout declares module {PACKAGE_ROOT}/datasets/writer.py, which does not exist"
+    ]
+
+
+def test_package_layout_check_catches_a_declared_package_that_is_absent() -> None:
+    tree = {m for m in _TREE if not m.startswith("leakage")}
+    violations = check_package_layout([Doc("PLAN.md", _LAYOUT_DOC)], tree)
+    messages = {v.message for v in violations}
+    assert f"the layout declares package {PACKAGE_ROOT}/leakage/, which does not exist" in messages
+
+
+def test_package_layout_check_reads_modules_that_wrap_to_a_second_line() -> None:
+    """``retrieval_overlap.py`` is on the continuation line; it is still attributed and checked."""
+    tree = _TREE - {"leakage/retrieval_overlap.py"}
+    violations = check_package_layout([Doc("PLAN.md", _LAYOUT_DOC)], tree)
+    assert any("retrieval_overlap.py" in v.message for v in violations)
+
+
+def test_package_layout_check_is_one_directional() -> None:
+    """A module the tree holds and the diagram omits is not a violation; the diagram is a sketch."""
+    tree = _TREE | {"contracts/", "contracts/reader.py", "smoke.py"}
+    assert check_package_layout([Doc("PLAN.md", _LAYOUT_DOC)], tree) == []
+
+
+def test_package_layout_check_ignores_a_text_block_that_is_not_the_tree() -> None:
+    """A doc's first ``text`` fence can be an unrelated diagram; only the rooted one is read."""
+    doc = Doc("PLAN.md", "```text\nraw → audit → release\n```\n\n" + _LAYOUT_DOC)
+    assert check_package_layout([doc], _TREE) == []
+
+
+def test_package_layout_check_reports_the_declaring_line() -> None:
+    violations = check_package_layout(
+        [Doc("PLAN.md", _LAYOUT_DOC)], _TREE - {"schemas.py"}
+    )
+    line = next(v.line for v in violations if "schemas.py" in v.message)
+    assert _LAYOUT_DOC.split("\n")[line - 1].strip().startswith("schemas.py")
+
+
+def test_observe_package_layout_finds_the_real_modules() -> None:
+    """The disk side of the check: the modules the audit compares the diagram against."""
+    existing = observe_package_layout(ROOT)
+    assert {"schemas.py", "cli.py", "docs_audit.py"} <= existing
+    assert {"datasets/", "datasets/loader.py", "leakage/ngram_overlap.py"} <= existing
+    # The package the diagram used to declare is genuinely absent — this is why the fix was a
+    # correction, not a rebuild.
+    assert "adapters/" not in existing
+    assert not any(m.startswith("adapters/") for m in existing)
 
 
 # --------------------------------------------------------------------------- #

@@ -29,10 +29,11 @@ python3 scripts/verify_docs.py --json
 python3 -m pytest -q tests/test_docs.py
 ```
 
-Nine checks. Each takes the world it needs as an argument — a parser's option strings, a
-mapping of collected test counts, a set of example ids, a mapping of computed values —
-rather than reaching for the repository. That is not a stylistic preference: it is the
-only way `tests/test_docs.py` can plant a defect and prove the check catches it.
+The auditor runs **11** checks (`docs_audit.CHECK_NAMES`). Each takes the world it needs as an
+argument — a parser's option strings, a mapping of collected test counts, a set of example ids, a
+mapping of computed values, the set of modules on disk — rather than reaching for the repository.
+That is not a stylistic preference: it is the only way `tests/test_docs.py` can plant a defect and
+prove the check catches it.
 
 | check | reads | asserts |
 |---|---|---|
@@ -46,6 +47,26 @@ only way `tests/test_docs.py` can plant a defect and prove the check catches it.
 | `echoes` | live docs | documents that repeat a claim's value repeat the current one |
 | `claim-commands` | the registry | each claim's "produced by" command exists |
 | `entry-point` | `pyproject.toml` | the `evalforge` console script points at something callable |
+| `package-layout` | live docs + the tree | every module the `docs/PLAN.md` §4 diagram names exists on disk |
+
+### A diagram can name code that was never written
+
+The first ten checks read what the docs *say* — numbers, commands, links, ids. None reads what the
+tree *is*. So a package could be drawn in the `docs/PLAN.md` §4 architecture diagram and never
+built, and every check stayed green. Milestone 15 added `package-layout` (the eleventh check) and
+its first run found exactly that: the diagram declared an `adapters/` package with `mock_llm.py`
+and `api_stub.py`, carried since the Milestone 0 scaffold, and no such package exists. The pipeline
+is entirely heuristic and calls no model, so no labeler adapter was ever needed; the diagram was
+corrected rather than back-filled with dead code, and `docs/METHODOLOGY.md` and `docs/PLAN.md` §3/§9
+were corrected with it.
+
+The check is **one-directional** on purpose. It flags a module the diagram declares and the tree
+lacks; it is silent about a module the tree holds and the diagram omits, because a layout diagram
+is a curated sketch — `contracts/`, `smoke.py`, and `scoring.py` are real and unlisted. Demanding
+the diagram be exhaustive would make the check assert something false in order to check a true one.
+It proves the diagram names no vaporware; it does not prove the diagram is complete. Recall over
+"structural claims this repository makes" is therefore not measured, for the same reason
+`retired-claims` cannot measure recall over false sentences.
 
 ### Live documents and historical records are different things
 
@@ -146,6 +167,7 @@ while the README is stale.
 | `demo_test_blocks` | 2 | `evalforge dataset-card` |
 | `qa_toy_calibration_p_b2000` | 0.777 | `evalforge audit` |
 | `qa_toy_calibration_p_b10000` | 0.789 | `evalforge difficulty` |
+| `docs_check_count` | 11 | `python3 scripts/verify_docs.py --json` |
 
 ### A number is not a claim until it names the command that produced it
 

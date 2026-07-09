@@ -17,11 +17,14 @@ own quality bar says every major claim must be backed by a test, a reproducible 
 table, a documented limitation, or an explicit non-goal — and until now, nothing checked that the
 backing existed.
 
-The auditor runs six checks. Each takes the world it needs as an argument (a parser's flags, a
-collection of test counts, a set of example ids, a mapping of computed values) rather than
-reaching for the repository, so every check can be run against synthetic documents. That is not a
-stylistic preference: it is the only way ``tests/test_docs.py`` can plant a defect and prove the
-check catches it.
+The auditor runs eleven checks (:data:`CHECK_NAMES`). Each takes the world it needs as an argument
+(a parser's flags, a collection of test counts, a set of example ids, a mapping of computed values,
+the set of modules on disk) rather than reaching for the repository, so every check can be run
+against synthetic documents. That is not a stylistic preference: it is the only way
+``tests/test_docs.py`` can plant a defect and prove the check catches it. The newest,
+:func:`check_package_layout`, closes the one gap the other ten leave — they read what the docs
+*say*, never what the tree *is*, so a package named in the architecture diagram and never built
+(``adapters/``, from the Milestone 0 scaffold) passed every check until this one existed.
 
 **This module is a defect detector, and Milestone 12's scoring discipline applies to it.**
 A doc checker that reports zero violations is indistinguishable, on that number alone, from a
@@ -243,6 +246,15 @@ CLAIMS: tuple[Claim, ...] = (
         "PYTHONPATH=src python3 -m eval_dataset_forge difficulty "
         "--dataset datasets/fixtures/qa_toy/examples.jsonl",
         tolerance=5e-4,
+    ),
+    # The auditor documents its own size. `docs/CLAIMS.md` prose once said "Nine checks" while its
+    # table already listed ten — a count with nothing to bind it drifts like any other. This binds
+    # it to `len(CHECK_NAMES)`, which the clean-check test enumerates one-for-one.
+    Claim(
+        "docs_check_count",
+        "checks the documentation auditor runs",
+        "python3 scripts/verify_docs.py --json",
+        echoes=(("docs/CLAIMS.md", r"runs \*\*(\d+)\*\* checks"),),
     ),
 )
 
@@ -787,6 +799,91 @@ def check_entry_point(root: pathlib.Path) -> list[Violation]:
 
 
 # --------------------------------------------------------------------------- #
+# Package layout
+# --------------------------------------------------------------------------- #
+
+#: The import root whose module tree the architecture diagram in ``docs/PLAN.md`` §4 draws.
+PACKAGE_ROOT = "src/eval_dataset_forge"
+
+#: A fenced ``text`` block; the layout check reads the one that draws the package tree.
+_LAYOUT_BLOCK = re.compile(r"```text\n(.*?)```", re.S)
+
+
+def _declared_layout(block: str) -> list[tuple[int, str]]:
+    """Parse a package-tree block into ``(line_within_block, declared_path)`` pairs.
+
+    A declared path is ``"schemas.py"`` (a top-level module), ``"datasets/"`` (a package), or
+    ``"datasets/loader.py"`` (a submodule). Continuation lines — a package whose module list wraps,
+    as ``leakage/`` does — are folded into the entry above them, so a module named on the second
+    line is still attributed to its package and to the package's line number.
+    """
+    entries: list[tuple[int, str]] = []
+    for number, line in enumerate(block.split("\n")):
+        if re.match(r"^  \S", line):
+            entries.append((number, line.strip()))
+        elif re.match(r"^\s{3,}\S", line) and entries:
+            first_number, text = entries[-1]
+            entries[-1] = (first_number, f"{text} {line.strip()}")
+
+    declared: list[tuple[int, str]] = []
+    for number, text in entries:
+        name, _, rest = text.partition(" ")
+        if name.endswith("/"):
+            declared.append((number, name))
+            declared.extend((number, name + module) for module in re.findall(r"[\w.]+\.py", rest))
+        elif name.endswith(".py"):
+            declared.append((number, name))
+    return declared
+
+
+def check_package_layout(
+    docs: Sequence[Doc],
+    existing: set[str],
+    package_root: str = PACKAGE_ROOT,
+) -> list[Violation]:
+    """Every module the architecture diagram names exists in the tree.
+
+    This is the gap the other ten checks leave open. They read numbers, commands, links and ids;
+    none reads the *structure* the docs describe, so a package can be named in ``docs/PLAN.md`` §4
+    and never built, and nothing notices. That is not hypothetical: ``adapters/`` with
+    ``mock_llm.py`` and ``api_stub.py`` sat in the diagram from Milestone 0's scaffold. The pipeline
+    turned out to be entirely heuristic and to call no model, so no adapter was ever written — and
+    no test read the line that said one had been. Same failure mode as Milestone 14's rotted
+    sentence, one level down: a claim in Markdown with no way to fail.
+
+    The check is deliberately **one-directional**. It flags a module the diagram *declares* and the
+    tree lacks; it says nothing about a module the tree holds and the diagram omits. A layout
+    diagram is a curated sketch — ``contracts/``, ``smoke.py`` and ``scoring.py`` are real and
+    unlisted on purpose — so demanding that it enumerate every module would make this check assert
+    something false in order to check a true thing. It proves the diagram names no vaporware; it
+    does not prove the diagram is complete, and :func:`check_package_layout` is the wrong tool to
+    reach for if that is what you want.
+    """
+    violations: list[Violation] = []
+    for doc in docs:
+        # A doc may hold several ``text`` fences (``docs/PLAN.md`` draws the pipeline before the
+        # package tree); the layout is the one rooted at the import path, not merely the first.
+        for match in _LAYOUT_BLOCK.finditer(doc.text):
+            if f"{package_root}/" not in match.group(1):
+                continue
+            base_line = doc.line_of(match.start(1))
+            for offset, declared in _declared_layout(match.group(1)):
+                if declared in existing:
+                    continue
+                kind = "package" if declared.endswith("/") else "module"
+                violations.append(
+                    Violation(
+                        "package-layout",
+                        doc.path,
+                        base_line + offset,
+                        f"the layout declares {kind} {package_root}/{declared}, "
+                        "which does not exist",
+                    )
+                )
+    return violations
+
+
+# --------------------------------------------------------------------------- #
 # Observing the world
 # --------------------------------------------------------------------------- #
 
@@ -838,6 +935,24 @@ def observe_example_ids(root: pathlib.Path) -> set[str]:
     return ids
 
 
+def observe_package_layout(root: pathlib.Path, package_root: str = PACKAGE_ROOT) -> set[str]:
+    """Every module and package that actually exists under the import root.
+
+    Returned in the same spelling the diagram uses: ``"schemas.py"``, ``"datasets/"``,
+    ``"datasets/loader.py"``. This is the ``existing`` set :func:`check_package_layout` compares the
+    diagram against — the check reads a document, this reads the tree, and neither reads the other,
+    which is what lets ``tests/test_docs.py`` feed the check a synthetic layout and synthetic tree.
+    """
+    base = root / package_root
+    existing: set[str] = {module.name for module in base.glob("*.py")}
+    for directory in base.iterdir():
+        if not directory.is_dir() or directory.name == "__pycache__":
+            continue
+        existing.add(f"{directory.name}/")
+        existing.update(f"{directory.name}/{module.name}" for module in directory.glob("*.py"))
+    return existing
+
+
 def observe_numbers(root: pathlib.Path) -> dict[str, float]:
     """Recompute every registered claim from the code and the committed artifacts.
 
@@ -882,6 +997,7 @@ def observe_numbers(root: pathlib.Path) -> dict[str, float]:
         "demo_test_blocks": dependence["blocks_by_split"]["test"],
         "qa_toy_calibration_p_b2000": calibrate(qa_toy, n_resamples=2_000, seed=0).p_value,
         "qa_toy_calibration_p_b10000": calibrate(qa_toy, n_resamples=10_000, seed=0).p_value,
+        "docs_check_count": len(CHECK_NAMES),
     }
 
 
@@ -923,6 +1039,25 @@ class DocsAuditReport:
         }
 
 
+#: Every check :func:`audit_docs` runs, named. The single source of truth for how many there are:
+#: :data:`CLAIMS` binds ``docs_check_count`` to ``len(CHECK_NAMES)``, and ``tests/test_docs.py``
+#: parametrises its clean-check assertion over exactly this tuple, so a check added without a name
+#: here fails a test and a name here without a check fails another. The count cannot drift silently.
+CHECK_NAMES: tuple[str, ...] = (
+    "links",
+    "cli-commands",
+    "referenced-paths",
+    "test-counts",
+    "example-ids",
+    "retired-claims",
+    "ledger",
+    "echoes",
+    "claim-commands",
+    "entry-point",
+    "package-layout",
+)
+
+
 def audit_docs(root: pathlib.Path) -> DocsAuditReport:
     """Run every check against the repository at ``root``."""
     live = live_docs(root)
@@ -932,6 +1067,7 @@ def audit_docs(root: pathlib.Path) -> DocsAuditReport:
     counts = observe_test_counts(root)
     ids = observe_example_ids(root)
     numbers = observe_numbers(root)
+    layout = observe_package_layout(root)
 
     violations = [
         *check_links(every, root),
@@ -944,6 +1080,7 @@ def audit_docs(root: pathlib.Path) -> DocsAuditReport:
         *check_echoes(live, numbers),
         *check_claim_commands(root, flags),
         *check_entry_point(root),
+        *check_package_layout(live, layout),
     ]
 
     stats = {
@@ -957,6 +1094,8 @@ def audit_docs(root: pathlib.Path) -> DocsAuditReport:
             for command in extract_commands(doc)
             if _cli_invocation(command.tokens) is not None
         ),
+        "checks": len(CHECK_NAMES),
+        "declared_modules": len(layout),
         "claims": len(CLAIMS),
         "retired_claims": len(RETIRED_CLAIMS),
         "candidate_retired_claims": len(CANDIDATE_RETIRED_CLAIMS),
@@ -983,6 +1122,7 @@ def format_report(report: DocsAuditReport) -> str:
 
 __all__ = [
     "CANDIDATE_RETIRED_CLAIMS",
+    "CHECK_NAMES",
     "CLAIMS",
     "CLAIMS_BY_ID",
     "Claim",
@@ -990,6 +1130,7 @@ __all__ = [
     "Doc",
     "DocsAuditReport",
     "LEDGER_PATH",
+    "PACKAGE_ROOT",
     "RETIRED_CLAIMS",
     "RetiredClaim",
     "Violation",
@@ -1002,6 +1143,7 @@ __all__ = [
     "check_example_ids",
     "check_ledger",
     "check_links",
+    "check_package_layout",
     "check_referenced_paths",
     "check_retired_claims",
     "check_test_counts",
@@ -1012,5 +1154,6 @@ __all__ = [
     "observe_cli_flags",
     "observe_example_ids",
     "observe_numbers",
+    "observe_package_layout",
     "observe_test_counts",
 ]

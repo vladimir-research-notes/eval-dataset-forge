@@ -61,7 +61,7 @@
     <tr><td>12</td><td>Smoke audit &amp; results</td><td>full offline audit over all fixtures → results/ + docs/RESULTS.md; findings scored against planted ground truth</td><td><span class="status done">done</span></td></tr>
     <tr><td>13</td><td>Integration contracts</td><td>executable contracts + <code>evalforge gate</code> for code-agent-runtime, BioAgentBench, LLM regression, scientific-claim-verifier, agent-control-bench</td><td><span class="status done">done</span></td></tr>
     <tr><td>14</td><td>Final portfolio report</td><td>README + docs to portfolio quality</td><td><span class="status pending">planned</span></td></tr>
-    <tr><td>15</td><td>Final cleanup</td><td>tests, lint, fixture validation, smoke audit, release build, report gen, hygiene scan, clean tree</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>15</td><td>Final cleanup</td><td>tests, lint, fixture validation, smoke audit, release build, report gen, hygiene scan, clean tree</td><td><span class="status done">landed</span></td></tr>
   </table>
 
   <h2>Per-milestone detail</h2>
@@ -349,11 +349,30 @@
   from its correction was measured at precision 0/2, recall 0/1, and ships registered but disabled —
   the same treatment Milestone 13 gave <code>difficulty_is_calibrated</code>.</p>
 
-  <h3>Milestone 15 — Final cleanup</h3>
-  <p>Run the full gate — tests, lint, fixture validation, smoke audit, release
-  build, report generation — and a hygiene scan (no secrets, no private data, no
-  large files, no caches, no paid-API output). Verify a clean tree. Nothing is
-  pushed.</p>
+  <h3>Milestone 15 — Final cleanup <span class="status done">landed</span></h3>
+  <p>The full gate runs clean — 1852 tests, <code>ruff</code>, fixture validation, the smoke audit,
+  the demo release rebuild, and <a href="claims.html">the documentation auditor</a> all green. Two
+  gaps surfaced while running it, both the same shape as Milestone 14's rotted sentence, one level
+  down: <strong>a document can describe code that was never written, and nothing noticed.</strong></p>
+  <p>The architecture diagram in <code>docs/PLAN.md</code> §4 declared an <code>adapters/</code>
+  package with <code>mock_llm.py</code> and <code>api_stub.py</code>, carried since the Milestone 0
+  scaffold. No such package exists — the pipeline is entirely heuristic and calls no model, so no
+  labeler adapter was ever needed. Ten documentation checks read what the docs <em>say</em>; none
+  read what the tree <em>is</em>. So Milestone 15 added an eleventh, <code>check_package_layout</code>,
+  which verifies every module the diagram names against the tree, one-directionally: it proves the
+  diagram names no vaporware, and is honest that it does not prove the diagram is complete. Its first
+  run found exactly the <code>adapters/</code> lines; the diagram was corrected, not back-filled with
+  dead code.</p>
+  <p>The milestone's own "hygiene scan" deliverable was the second gap: <code>docs/SAFETY.md</code>
+  referred to "the hygiene check in Milestone 15", which did not exist. <code>scripts/hygiene_scan.py</code>
+  now audits the do-not-commit contract against the tracked tree — no ignored-but-forced-in file, no
+  forbidden secret/key/weight path, nothing dataset-sized — <strong>allowlist-free</strong>, because
+  an exemption list is a thing that grows quietly. It checks which files exist, not their contents;
+  content secret-detection stays in the validation layer, which is tested against fixtures that hold
+  fake secrets on purpose. And a sharper reproduction result: rebuilding the committed
+  <code>qa_toy</code> release without scikit-learn preserves <code>content_id</code>,
+  <code>eval_id</code>, and every split byte — on this release the two detectors agree about the
+  split, so only the artifacts that <em>name</em> the detector move. Nothing is pushed.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

@@ -41,7 +41,17 @@ are placeholders describing the category, not operational content.
 ## What we never commit
 
 Secrets, API keys, `.env`, virtualenvs, caches, model weights, large datasets,
-and cached API responses. See `.gitignore` and the hygiene check in Milestone 15.
+and cached API responses. `.gitignore` keeps them out of `git add` and
+`.claude/settings.json` denies the tools that fetch them; the standing *audit* is
+`scripts/hygiene_scan.py` (`eval_dataset_forge.hygiene`), which fails if any file
+git tracks is ignored-but-forced-in, a forbidden secret/key/weight path, or
+dataset-sized. It checks which files exist, not their contents — content
+secret-detection lives in the validation layer, which is tested against fixtures
+that hold fake secrets on purpose.
+
+```bash
+python3 scripts/hygiene_scan.py            # exit 1 on any contract violation
+```
 
 ## Optional paid-API adapters
 

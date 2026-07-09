@@ -192,6 +192,20 @@
       that produces them. It does <strong>not</strong> check that the code is correct, it matches retired
       claims as phrasings rather than propositions (a paraphrase evades it), and its recall over "false
       sentences in this repository" is unmeasurable, because no ground-truth list of false sentences exists.</li>
+    <li><strong>A diagram can name code that was never written, and the layout check is one-directional.</strong>
+      Milestone 15 added an eleventh documentation check, <code>package-layout</code>, after finding that
+      <code>docs/PLAN.md</code> §4 declared an <code>adapters/</code> package that was never built — the
+      pipeline is entirely heuristic and calls no model. The check verifies every module the diagram
+      <em>names</em> against the tree, but says nothing about a module the tree holds and the diagram omits:
+      a layout diagram is a curated sketch, so demanding it be exhaustive would make the check assert
+      something false. It proves the diagram names no vaporware; it does not prove the diagram is complete.</li>
+    <li><strong>The hygiene scan checks which files exist, not what they contain.</strong>
+      <code>scripts/hygiene_scan.py</code> audits the do-not-commit contract — no ignored-but-forced-in file,
+      no forbidden secret/key/weight path, nothing dataset-sized — and is deliberately allowlist-free. It
+      does <strong>not</strong> grep file contents for secrets: that lives in the
+      <a href="validation.html">validation layer</a>, which is tested against fixtures that hold fake secrets
+      on purpose, and a repo-wide secret grep would flag those very fixtures. A real secret pasted into a
+      source file is therefore outside this scan's reach.</li>
     <li><strong>This website is not audited.</strong> The documentation checks read Markdown. These pages
       restate the docs' claims in HTML and nothing verifies that the two agree.</li>
   </ul>

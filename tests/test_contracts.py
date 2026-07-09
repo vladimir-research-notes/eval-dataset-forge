@@ -357,6 +357,55 @@ def test_the_committed_release_rebuilds_byte_for_byte(tmp_path: Path) -> None:
         ).read_bytes(), split
 
 
+def test_the_demo_release_keeps_its_identity_when_rebuilt_without_sklearn(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The qa_toy counterpart to the bio_toy divergence, and a sharper claim than REPRODUCE.md's.
+
+    On ``bio_toy`` the two detectors disagree about a duplicate block, so the adversarial split
+    moves and ``eval_id`` moves with it (see the test above). On the committed ``qa_toy`` release
+    they **agree** about the split — the near cluster ``qa-003 + qa-004 + qa-012`` is one block
+    under both ``tfidf`` and ``jaccard`` — so rebuilding the demo without scikit-learn preserves
+    ``content_id``, ``eval_id``, and every split file byte-for-byte. The detector's disagreement
+    reaches only the artifacts that *name* it (``audit.{json,md}``, ``dataset_card.md``,
+    ``REPRODUCE.md``) and the manifest hashes of those.
+
+    ``REPRODUCE.md`` warns that rebuilding without the accelerator "can produce different splits and
+    a different ``eval_id``". That "can" is about the general case; this test records that on *this*
+    release it does not, which is why ``verify-release`` still reports 10/10 on a no-sklearn rebuild
+    even though five tracked files would show as modified.
+    """
+    from eval_dataset_forge.datasets.manifest import load_manifest
+
+    committed = load_manifest(DEMO / "manifest.json")
+
+    with_sklearn, dir_a = _build(
+        tmp_path, ["qa_toy"], "qa_a", stratify_by=("task_family",), quarantine_blocking=True
+    )
+    _no_sklearn(monkeypatch)
+    without_sklearn, dir_b = _build(
+        tmp_path, ["qa_toy"], "qa_b", stratify_by=("task_family",), quarantine_blocking=True
+    )
+
+    a, b = with_sklearn.release.manifest, without_sklearn.release.manifest
+    assert a.dependence["near_method"] == "tfidf"
+    assert b.dependence["near_method"] == "jaccard"
+
+    # Identity and data are environment-independent here — anchored to the committed release.
+    assert a.content_id == b.content_id == committed.content_id
+    assert a.eval_id == b.eval_id == committed.eval_id
+    assert a.dependence["block_count"] == b.dependence["block_count"]
+    assert (dir_a / "examples.jsonl").read_bytes() == (dir_b / "examples.jsonl").read_bytes()
+    for split in ("train", "dev", "test"):
+        assert (dir_a / "splits" / f"{split}.jsonl").read_bytes() == (
+            dir_b / "splits" / f"{split}.jsonl"
+        ).read_bytes(), split
+
+    # What does move: exactly the artifacts that record which detector ran.
+    assert a.hashes["audit.json"] != b.hashes["audit.json"]
+    assert (dir_a / "audit.md").read_bytes() != (dir_b / "audit.md").read_bytes()
+
+
 # --------------------------------------------------------------------------- #
 # Composability
 # --------------------------------------------------------------------------- #

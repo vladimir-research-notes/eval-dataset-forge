@@ -48,9 +48,10 @@ quality; it claims to surface specific, common, checkable defects.
 - **CPU-first.** Target is a general AWS `m5.2xlarge`. No GPU anywhere.
 - **Offline by default.** Every default command and every test runs with no
   network, using small committed fixtures.
-- **No paid API required.** Deterministic mock adapters are first-class. Any
-  future paid-API mode must ship with a dry-run mode, a response cache, a
-  token/cost estimator, and a hard max-cost guard, and stays disabled by default.
+- **No paid API required.** The default pipeline calls no model at all — every
+  audit stage is a deterministic function of the committed data (§9). Any future
+  paid-API mode must ship with a dry-run mode, a response cache, a token/cost
+  estimator, and a hard max-cost guard, and stays disabled by default.
 - **Small, honest dependency set.** Hard deps: `pydantic` (schema validation),
   `numpy` (bootstrap statistics), `pyyaml` (YAML formats). Optional: `pandas`
   (tabular reports) and `scikit-learn` (TF-IDF near-duplicate detection); the
@@ -139,8 +140,16 @@ src/eval_dataset_forge/
   difficulty/          heuristics.py · calibration.py · buckets.py
   statistics/          bootstrap.py · confidence.py · ranking_stability.py
   reports/             dataset_card.py · markdown.py · html.py
-  adapters/            mock_llm.py · api_stub.py
 ```
+
+This diagram lists the principal modules; it is **not** exhaustive, and `contracts/`
+(Milestone 13), `smoke.py`, and `scoring.py` are real and unlisted. What it *does* name must
+exist: Milestone 15's `check_package_layout` (an eleventh documentation check) verifies every
+module drawn here against the tree, one-directionally. It caught its own justification — this
+diagram declared an `adapters/` package with `mock_llm.py` and `api_stub.py` from the Milestone 0
+scaffold, and no such package was ever built. The pipeline is entirely heuristic and calls no
+model (see §9), so no labeler adapter was needed; the false line is removed here rather than
+satisfied with dead code, and the check now prevents the next one.
 
 The CLI is `argparse`-based (stdlib) to keep the dependency footprint small;
 `typer` is a permitted alternative but not required. Heavy imports are lazy so
@@ -244,12 +253,18 @@ evalforge smoke        --out results/reports/smoke_audit.md
 
 ## 9. Adapters
 
-- **MockLLMLabeler** — deterministic, offline, used by tests.
-- **ApiLabelerStub** — interface only, disabled by default; documents the
-  dry-run / cache / cost-estimate / max-cost-guard requirements any real
-  implementation must satisfy.
+**Status: none built.** This section originally specified two — a `MockLLMLabeler` for tests and
+an `ApiLabelerStub` for a future paid path — and Milestone 0 drew an `adapters/` package for them
+in §4. Neither was written. The label audit (Milestone 6) turned out to be deterministic
+heuristics over the committed annotations, and no other stage calls a model either, so there was
+no model call for a mock to stand in for and no adapter to disable. Milestone 15 removed the
+`adapters/` line from §4 and recorded the reason here rather than build dead code to match the
+diagram; `check_package_layout` now enforces the correspondence.
 
-No paid API is required in this version.
+The **requirements** any future paid-API adapter must satisfy still stand as a forward contract,
+and are policy, not description: disabled by default, with a dry-run mode, a response cache, a
+token/cost estimator, and a hard max-cost guard (see `docs/SAFETY.md` and `CLAUDE.md`). No paid
+API is required, or present, anywhere in this version.
 
 ## 10. Milestone plan
 

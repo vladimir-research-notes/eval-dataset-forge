@@ -44,8 +44,10 @@ rather than an assumption.
   different `eval_id` and a different held-out set from identical bytes,
   identical command, identical seed. Every release records the method that ran;
   see [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md).
-- **Offline and CPU-only.** No step requires a network or a GPU. Deterministic
-  mock adapters stand in for any model call in tests.
+- **Offline and CPU-only.** No step requires a network or a GPU. The pipeline
+  calls no model: every audit stage is a deterministic function of the committed
+  data, so there is no model call for a mock adapter to stand in for (see
+  `docs/PLAN.md` §9).
 
 ## Pipeline
 

@@ -46,10 +46,11 @@
   files no test had ever read.</div>
 
   <h2>What the auditor checks</h2>
-  <p><code>python3 scripts/verify_docs.py</code> runs ten checks over the live documents and the
-  historical record: every relative Markdown link, every shell command in a fenced block, and 11
-  registered numeric claims. It prints its own coverage and exits 1 when any documented claim is
-  unsupported.</p>
+  <p><code>python3 scripts/verify_docs.py</code> runs 11 checks over the live documents, the
+  historical record, and the module tree: every relative Markdown link, every shell command in a
+  fenced block, 12 registered numeric claims, and — as of Milestone 15 — every module the
+  <code>docs/PLAN.md</code> §4 architecture diagram names. It prints its own coverage and exits 1
+  when any documented claim is unsupported.</p>
 
   <table>
     <tr><th>check</th><th>reads</th><th>asserts</th></tr>
@@ -63,7 +64,22 @@
     <tr><td><code>echoes</code></td><td>live docs</td><td>documents repeating a claim's value repeat the current one</td></tr>
     <tr><td><code>claim-commands</code></td><td>the registry</td><td>each claim's "produced by" command exists</td></tr>
     <tr><td><code>entry-point</code></td><td><code>pyproject.toml</code></td><td>the <code>evalforge</code> console script points at something callable</td></tr>
+    <tr><td><code>package-layout</code></td><td>live docs + the tree</td><td>every module the <code>docs/PLAN.md</code> §4 diagram names exists on disk</td></tr>
   </table>
+
+  <h2>A diagram can name code that was never written</h2>
+  <p>The first ten checks read what the docs <em>say</em>. None read what the tree <em>is</em>, so a
+  package could be drawn in the architecture diagram and never built, and every check stayed green.
+  Milestone 15's <code>package-layout</code> check found exactly that: <code>docs/PLAN.md</code> §4
+  declared an <code>adapters/</code> package with <code>mock_llm.py</code> and <code>api_stub.py</code>,
+  carried since the Milestone 0 scaffold, and no such package exists. The pipeline is entirely
+  heuristic and calls no model, so no labeler adapter was ever needed; the diagram was corrected, not
+  back-filled with dead code.</p>
+  <p>The check is <strong>one-directional</strong> on purpose. It flags a module the diagram declares
+  and the tree lacks; it is silent about a module the tree holds and the diagram omits, because a
+  layout diagram is a curated sketch. It proves the diagram names no vaporware; it does not prove the
+  diagram is complete, for the same reason <code>retired-claims</code> cannot measure recall over
+  false sentences.</p>
 
   <h2>Live documents and historical records are different things</h2>
   <p><code>README.md</code> and <code>docs/*.md</code> state what is true now. <code>docs/milestones/*.md</code>
@@ -147,21 +163,24 @@
   So <code>tests/test_docs.py</code> plants a defect for every check and asserts the check fires: a broken
   link, an invented subcommand, a renamed flag, a stale count, a fixture id no fixture holds, a retired
   claim retyped, a ledger row the code does not reproduce, a drifted README, a claim citing a command that
-  does not exist, an orphaned entry point.</p>
+  does not exist, an orphaned entry point, a layout that names a module the tree lacks. The hygiene scan
+  (<code>tests/test_hygiene.py</code>) is scored the same way — each check is shown to fire on a planted
+  forbidden path, forced-in file, or oversized blob.</p>
 
   <h2>Implementation</h2>
   <ul>
-    <li><code>src/eval_dataset_forge/docs_audit.py</code> — the ten checks, the claim registry, the
-      retired-claim ledger, and <code>observe_numbers()</code>, which recomputes every claim from the code
-      and the committed artifacts and reads no document.</li>
+    <li><code>src/eval_dataset_forge/docs_audit.py</code> — the 11 checks (<code>CHECK_NAMES</code>),
+      the claim registry, the retired-claim ledger, and <code>observe_numbers()</code>, which
+      recomputes every claim from the code and the committed artifacts and reads no document.</li>
     <li><code>scripts/verify_docs.py</code> — the runner; exit 1 on any unsupported claim.</li>
-    <li><code>tests/test_docs.py</code> — 70 tests, of which the load-bearing ones are the controls.</li>
+    <li><code>tests/test_docs.py</code> — 81 tests, of which the load-bearing ones are the controls.</li>
     <li><code>docs/CLAIMS.md</code> — the ledger and the full argument.</li>
   </ul>
 
   <h2>Status</h2>
-  <p><span class="status done">landed</span> Ten checks, clean on this repository. 70 tests.
-  <code>python3 scripts/verify_docs.py</code> exits 0.</p>
+  <p><span class="status done">landed</span> 11 checks, clean on this repository. 81 tests.
+  <code>python3 scripts/verify_docs.py</code> exits 0. The eleventh check,
+  <code>package-layout</code>, arrived in Milestone 15.</p>
 
   <h2>Limitations &amp; open questions</h2>
   <ul>
