@@ -53,6 +53,23 @@ n-gram/contamination checks only compare against text we are **given** (e.g. the
 train split or a supplied reference). We cannot detect contamination against
 private pretraining corpora. Absence of a flag is not proof of no contamination.
 
+## A split guarantee is only as good as the clusters it is built from
+
+The adversarial strategy drives residual cross-split overlap to zero **by
+construction**: its indivisible blocks *are* the deduplication ladder's clusters, so no
+cluster can straddle a boundary. That makes the guarantee exactly as strong as the near
+stage's recall, and no stronger. `ret-001`/`ret-002` is a planted cross-split paraphrase
+that no lexical threshold can reach ([`DEDUPLICATION.md`](DEDUPLICATION.md)); the
+adversarial split straddles it exactly as a random split would, and the post-build
+verifier — which reuses the same ladder — reports a clean zero. A test pins the miss so
+the heuristic guarantee cannot be quietly upgraded to a promise. See
+[`SPLITS.md`](SPLITS.md).
+
+Relatedly, a strategy that closes the channel its *metadata* describes may close nothing
+at all. Every planted duplicate in the fixtures carries a fresh `source_id`, so the
+source-grouped strategy leaves all of them free to straddle — and on three of the five
+fixtures produces a bit-for-bit identical assignment to `random`.
+
 ## Statistics quantify sampling noise only
 
 Bootstrap CIs and ranking-stability checks describe uncertainty over the *given*

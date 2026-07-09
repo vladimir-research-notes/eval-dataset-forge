@@ -23,7 +23,6 @@ from eval_dataset_forge import SCHEMA_VERSION, __version__
 # the command name to the milestone number that lands it (see docs/PLAN.md).
 _PENDING = {
     "audit": 12,
-    "build-splits": 7,
     "dataset-card": 11,
     "smoke": 12,
 }
@@ -109,6 +108,65 @@ def cmd_validate(args: argparse.Namespace) -> int:
     return 0 if report.ok else 1
 
 
+def _parse_ratios(text: str) -> dict[str, float]:
+    """Parse ``0.7,0.1,0.2`` or ``train=0.8,test=0.2`` into a ratio mapping."""
+    parts = [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+    if any("=" in part for part in parts):
+        pairs = [part.split("=", 1) for part in parts]
+        return {name.strip(): float(value) for name, value in pairs}
+    names = ["train", "dev", "test"]
+    if len(parts) != len(names):
+        raise argparse.ArgumentTypeError(
+            "--ratios wants three positional values (train,dev,test) or named ones "
+            "(train=0.8,test=0.2)"
+        )
+    return dict(zip(names, (float(part) for part in parts), strict=True))
+
+
+def cmd_build_splits(args: argparse.Namespace) -> int:
+    """Construct train/dev/test splits and verify them against the leakage checks.
+
+    Writes ``<out>/splits/{train,dev,test}.jsonl`` and ``<out>/split_report.json``. Exit
+    code is 0 unless ``--fail-on-leakage`` is set and the built splits still contain a
+    detectable cross-split duplicate cluster — the check a CI job would gate a release
+    on. The splits package is imported lazily so the stdlib-only commands keep working
+    without the scientific stack.
+    """
+    from eval_dataset_forge.datasets import loader
+    from eval_dataset_forge.dedup import find_duplicates
+    from eval_dataset_forge.splits import build_splits, format_report, write_splits
+
+    examples = loader.load_examples(args.dataset)
+    dedup_report = find_duplicates(
+        examples, near_require_same_answer=not args.ignore_answer_gate
+    )
+
+    quarantine_ids: list[str] = []
+    if args.quarantine_blocking:
+        from eval_dataset_forge.labels import audit_labels
+
+        quarantine_ids = audit_labels(examples).blocking_example_ids
+
+    report = build_splits(
+        examples,
+        strategy=args.strategy,
+        ratios=_parse_ratios(args.ratios),
+        seed=args.seed,
+        stratify_by=[f.strip() for f in args.stratify_by.split(",") if f.strip()],
+        dedup_report=dedup_report,
+        quarantine_ids=quarantine_ids,
+    )
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_report(report))
+
+    written = write_splits(examples, report, args.out)
+    print(f"\nwrote {len(written) - 1} split file(s) and a report under {args.out}")
+    return 1 if args.fail_on_leakage and report.residual_overlap else 0
+
+
 def _cmd_pending(name: str):
     def handler(_args: argparse.Namespace) -> int:
         milestone = _PENDING[name]
@@ -167,7 +225,41 @@ def build_parser() -> argparse.ArgumentParser:
         help="split construction strategy",
     )
     p_splits.add_argument("--out", required=True, help="output release directory")
-    p_splits.set_defaults(func=_cmd_pending("build-splits"))
+    p_splits.add_argument(
+        "--seed", type=int, default=0, help="seed for the shuffled strategies (default: 0)"
+    )
+    p_splits.add_argument(
+        "--ratios",
+        default="0.7,0.1,0.2",
+        help="split ratios as train,dev,test or name=value pairs (must sum to 1.0)",
+    )
+    p_splits.add_argument(
+        "--stratify-by",
+        default="task_family",
+        help="comma-separated facets to stratify on, from {task_family, difficulty}; "
+        "stratified and adversarial strategies only. Combining both multiplies the "
+        "strata and measures worse on both facets at small N — see docs/SPLITS.md",
+    )
+    p_splits.add_argument(
+        "--quarantine-blocking",
+        action="store_true",
+        help="keep label-audit blocking examples out of dev/test (adversarial only)",
+    )
+    p_splits.add_argument(
+        "--ignore-answer-gate",
+        action="store_true",
+        help="let the near-duplicate stage pair examples with differing gold answers "
+        "(needed for retrieval-style data whose answers are document ids)",
+    )
+    p_splits.add_argument(
+        "--fail-on-leakage",
+        action="store_true",
+        help="exit 1 if the built splits still contain a cross-split duplicate cluster",
+    )
+    p_splits.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_splits.set_defaults(func=cmd_build_splits)
 
     p_card = sub.add_parser("dataset-card", help="generate a dataset card for a release")
     p_card.add_argument("--release", required=True, help="path to a release directory")

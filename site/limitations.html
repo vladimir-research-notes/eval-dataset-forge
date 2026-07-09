@@ -78,6 +78,17 @@
       model. Ambiguity detection is lexical, so it misses ambiguity that is semantic or
       <em>over</em>-specified; conflict detection compares values lexically, so two
       annotators writing "a drug" and "pharmaceutical" are recorded as disagreeing.</li>
+    <li><strong>A <a href="splits.html">split</a> guarantee is only as good as the clusters
+      it is built from.</strong> The adversarial strategy drives residual cross-split
+      overlap to zero <em>by construction</em> — its indivisible blocks <em>are</em> the
+      deduplication ladder's clusters — so the guarantee is exactly as strong as the near
+      stage's recall and no stronger. <code>ret-001</code>/<code>ret-002</code> is a planted
+      cross-split paraphrase no lexical threshold can reach; the adversarial split straddles
+      it exactly as a random split would, and the verifier, reusing the same ladder, reports
+      a clean zero. A test pins the miss. Relatedly, a strategy that closes the channel its
+      <em>metadata</em> describes may close nothing at all: every planted duplicate carries a
+      fresh <code>source_id</code>, so source-grouping leaves all of them free to straddle
+      and, on three of five fixtures, is bit-for-bit identical to a random split.</li>
   </ul>
 
   <h2>Non-goals</h2>

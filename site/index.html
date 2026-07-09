@@ -92,7 +92,14 @@
   <a href="leakage.html">leakage &amp; contamination</a>, four deliberately
   non-disjoint channels (cross-split overlap, answer-in-prompt containment, reference
   n-gram overlap, retrieval contamination) that between them recover every planted
-  leakage defect, including one the deduplication ladder is provably blind to. The
+  leakage defect, including one the deduplication ladder is provably blind to;
+  Milestone 6 added the fourth — the <a href="label-audit.html">label audit</a>, five
+  checks plus a deterministic adjudication queue, honest that label <em>truth</em> is
+  invisible to all of them; and Milestone 7 landed the first stage that <em>changes</em>
+  the data rather than describing it — the <a href="splits.html">split builder</a>, whose
+  five strategies share one algorithm and differ only in which dependence between examples
+  they refuse to cut through, and which verifies every build by re-running the leakage
+  checks over its own output. The
   remaining audit subsystems follow milestone by milestone — see
   <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
   contract.</p>

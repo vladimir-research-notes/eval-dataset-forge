@@ -71,6 +71,36 @@
     <tr><td>ambiguous (lexical, tags withheld)</td><td>heuristic</td><td>4 / 6 declared</td><td>0</td></tr>
     <tr><td>inconsistent format</td><td>heuristic</td><td>2 / 2</td><td>0</td></tr>
   </table>
+
+  <h2>Split construction <span class="status done">M7</span></h2>
+  <p>This stage does not score itself against <code>defects.yaml</code> — it
+  <em>changes</em> the data, so it is scored against its own output.
+  <code>build_splits()</code> applies its assignment and then re-runs the cross-split
+  leakage checks over the splits it just produced. Mean residual cross-split duplicate
+  clusters over seeds 0–19, ratios <code>0.7/0.1/0.2</code>:</p>
+  <table>
+    <tr><th>fixture</th><th>random</th><th>stratified</th><th>source-grouped</th><th>adversarial</th><th>temporal</th></tr>
+    <tr><td><code>qa_toy</code></td><td>1.30</td><td>1.30</td><td>1.00</td><td><strong>0.00</strong></td><td>1.00</td></tr>
+    <tr><td><code>agent_tasks_toy</code></td><td>1.75</td><td>1.75</td><td>1.75</td><td><strong>0.00</strong></td><td>0.00</td></tr>
+    <tr><td><code>bio_toy</code></td><td>1.10</td><td>1.10</td><td>1.10</td><td><strong>0.00</strong></td><td>0.00</td></tr>
+    <tr><td><code>retrieval_toy</code></td><td>0.00</td><td>0.00</td><td>0.00</td><td><strong>0.00</strong></td><td>0.00</td></tr>
+    <tr><td><code>safety_toy</code></td><td>0.95</td><td>0.95</td><td>0.95</td><td><strong>0.00</strong></td><td>0.00</td></tr>
+    <tr><td><strong>all five pooled</strong></td><td>5.45</td><td>5.25</td><td>4.60</td><td><strong>0.00</strong></td><td>1.00</td></tr>
+  </table>
+  <p><strong>Source-grouped closes nothing.</strong> Every planted duplicate carries a
+  fresh <code>source_id</code> (<code>src-fr-capital</code> →
+  <code>src-fr-capital-dup</code>), exactly as a real corpus records a paraphrase written
+  as a new record — and on the three fixtures where no source is shared at all, the
+  strategy produces a <em>bit-for-bit identical assignment to <code>random</code></em>.
+  Only blocks derived from example content close the channel.</p>
+  <p><strong>Joint stratification is worse on both facets than either alone</strong>
+  (TVD family 0.083 vs 0.036; TVD difficulty 0.077 vs 0.030), and guarantees that no
+  <code>hard</code> example reaches the test set: the three hard examples sit in three
+  family strata of size one, each apportioning entirely to <code>train</code>. The default
+  is a single facet. And <strong>the adversarial zero is inherited from a heuristic</strong>
+  — it holds by construction because the blocks are the dedup clusters, so the paraphrase
+  the ladder cannot see straddles anyway, and a test pins the miss. Full analysis in
+  <code>docs/SPLITS.md</code>.</p>
   <p>The label audit recovers <strong>15 of 15</strong> auto-detectable planted label
   defects with zero false positives — and is blind, by construction, to the three planted
   <code>mislabeled</code> answers (<code>qa-006</code>, <code>bio-009</code>,
@@ -86,6 +116,13 @@
   <h2>Reproduce</h2>
 <pre><code>python3 -m pytest -q tests/test_dedup.py      # 99 tests
 python3 -m pytest -q tests/test_leakage.py    # 111 tests
+python3 -m pytest -q tests/test_labels.py     # 144 tests
+python3 -m pytest -q tests/test_splits.py     # 723 tests
+
+PYTHONPATH=src python3 -m eval_dataset_forge build-splits \
+    --dataset datasets/fixtures/qa_toy/examples.jsonl \
+    --strategy adversarial --quarantine-blocking --fail-on-leakage \
+    --out results/processed/qa_toy_adversarial
 
 PYTHONPATH=src python3 -m eval_dataset_forge smoke --out results/reports/smoke_audit.md  # Milestone 12</code></pre>
 

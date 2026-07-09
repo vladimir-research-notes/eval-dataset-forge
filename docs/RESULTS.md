@@ -196,6 +196,73 @@ Reproduce:
 python3 -m pytest -q tests/test_labels.py     # 144 tests
 ```
 
+### Split construction (Milestone 7)
+
+Unlike the earlier stages, this one does not score itself against `defects.yaml`. It
+**changes** the data, so it is scored against its own output: `build_splits()` applies
+its assignment and then re-runs Milestone 5's cross-split checks over the splits it just
+produced. Full method, sweeps, and failure-mode analysis: [`SPLITS.md`](SPLITS.md).
+
+Residual cross-split duplicate clusters, mean over seeds 0–19, ratios `0.7/0.1/0.2`:
+
+| fixture | random | stratified | source-grouped | **adversarial** | temporal |
+|---|---|---|---|---|---|
+| `qa_toy` | 1.30 | 1.30 | 1.00 | **0.00** | 1.00 |
+| `agent_tasks_toy` | 1.75 | 1.75 | 1.75 | **0.00** | 0.00 |
+| `bio_toy` | 1.10 | 1.10 | 1.10 | **0.00** | 0.00 |
+| `retrieval_toy` | 0.00 | 0.00 | 0.00 | **0.00** | 0.00 |
+| `safety_toy` | 0.95 | 0.95 | 0.95 | **0.00** | 0.00 |
+| **all five pooled** | 5.45 | 5.25 | 4.60 | **0.00** | 1.00 |
+
+Four results are worth stating precisely.
+
+**The grouping key the dataset hands you is not the one that closes the leak.** Every
+planted duplicate carries a *fresh* `source_id` (`src-fr-capital` →
+`src-fr-capital-dup`, `src-fizzbuzz` → `src-fizzbuzz-para`) — exactly how a real corpus
+records a paraphrase written as a new record. `source-grouped` therefore leaves all of
+them free to straddle, and measures barely better than `random`. On the three fixtures
+where no `source_id` is shared at all, it produces a **bit-for-bit identical assignment
+to `random`** at every seed: not a weaker control, the same function. Only blocks
+derived from example *content* close the channel.
+
+**Stratifying on more facets makes the test set less representative, not more.** Total
+variation distance between the test split's marginal and the corpus's (mean over 20
+seeds, pooled corpus):
+
+| `stratify_by` | strata | TVD family ↓ | TVD difficulty ↓ | dev size | `hard` in test |
+|---|---|---|---|---|---|
+| (none) | 1 | 0.216 | 0.156 | 6.0 | 0.45 |
+| **`task_family`** (default) | 5 | **0.036** | 0.152 | 5.0 | 0.25 |
+| `difficulty` | 4 | 0.184 | **0.030** | 5.0 | 1.00 |
+| `task_family,difficulty` | 17 | 0.083 | 0.077 | 3.0 | **0.00** |
+
+Joint stratification is worse on *both* facets than either facet alone: strata multiply
+while the corpus does not, and every stratum then starves the small splits at once. It
+also guarantees an empty cell — the three `hard` examples sit in three different family
+strata of size one, each of which apportions entirely to `train`, so **no `hard` example
+reaches the test set** and the benchmark cannot measure difficulty. Two warnings surface
+it. The default is a single facet.
+
+**The label audit's hand-off costs something, and the cost is reported.** On the pooled
+corpus an adversarial split without quarantine scores on six examples whose gold answer
+Milestone 6 says a human must adjudicate. `--quarantine-blocking` moves all fourteen
+blocking examples to `train`; `test` shrinks from 12 to 8 and its achieved ratio falls
+from 0.214 to 0.143. Nothing is deleted.
+
+**The adversarial guarantee is inherited from a heuristic — and it says so.** Zero
+residual overlap holds *by construction*, because the blocks are the dedup clusters. So
+it is exactly as good as the near stage's recall. `ret-001`/`ret-002` is a planted
+cross-split paraphrase that no lexical threshold can reach; the adversarial split
+straddles it exactly as `random` would, and the verifier reports a clean zero. A test
+pins the miss. Relatedly, `retrieval_toy`'s all-zero row measures the near stage's
+answer gate rather than the data, and is called out rather than counted as a win.
+
+Reproduce:
+
+```bash
+python3 -m pytest -q tests/test_splits.py     # 723 tests
+```
+
 ## What will be reported here
 
 - Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII

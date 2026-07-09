@@ -50,7 +50,7 @@
     <tr><td>4</td><td>Deduplication</td><td>exact, normalized, near-duplicate (token overlap / TF-IDF) + tests with known dups</td><td><span class="status done">done</span></td></tr>
     <tr><td>5</td><td>Leakage checks</td><td>train/test overlap, answer-in-prompt, n-gram overlap, retrieval contamination</td><td><span class="status done">done</span></td></tr>
     <tr><td>6</td><td>Label audit</td><td>missing / conflicting / ambiguous / format checks; adjudication queue export</td><td><span class="status done">done</span></td></tr>
-    <tr><td>7</td><td>Split builder</td><td>random, stratified (family/difficulty), source-grouped, adversarial</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>7</td><td>Split builder</td><td>random, stratified (family/difficulty), source-grouped, adversarial, temporal; verified against the leakage checks</td><td><span class="status done">done</span></td></tr>
     <tr><td>8</td><td>Difficulty calibration</td><td>transparent heuristics + difficulty distribution reports</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>9</td><td>Statistics &amp; ranking stability</td><td>bootstrap CIs, paired comparison, ranking stability, small-N warnings</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>10</td><td>Release builder</td><td>dataset JSONL, manifest, split files, audit summary, hashes, versioned release dir</td><td><span class="status pending">planned</span></td></tr>
@@ -164,10 +164,21 @@
   construction — pinned by a regression test. See the
   <a href="label-audit.html">Label audit</a> page.</p>
 
-  <h3>Milestone 7 — Split builder</h3>
-  <p>Construct splits with a recorded, reproducible <code>SplitSpec</code>:
-  random, stratified by family/difficulty, source-grouped, and the adversarial
-  (near-dup-aware) strategy. Re-runs leakage checks across the result.</p>
+  <h3>Milestone 7 — Split builder <span class="status done">done</span></h3>
+  <p>Five strategies over one algorithm: deal indivisible <code>Block</code>s into
+  splits until each quota is full, where the choice of block <em>is</em> the choice of
+  which dependence the split refuses to cut through. Quotas are apportioned to whole
+  examples by largest-remainder before any block moves. Every build re-runs Milestone 5's
+  cross-split checks over its own output, so the adversarial strategy's <strong>0.00
+  residual overlap on every fixture at every seed</strong> is a measurement, not a claim.
+  Two results are worth reading twice: <strong>source-grouped closes nothing</strong> —
+  each planted duplicate carries a fresh <code>source_id</code>, and on three fixtures the
+  strategy is bit-for-bit identical to <code>random</code>; and <strong>joint
+  stratification is worse on both facets than either alone</strong>, guaranteeing that no
+  <code>hard</code> example reaches the test set. Consumes Milestone 6's
+  <code>blocking_example_ids</code> to keep unadjudicated labels out of evaluation, and is
+  honest that its zero is inherited from a heuristic. 723 tests. See the
+  <a href="splits.html">Splits</a> page.</p>
 
   <h3>Milestone 8 — Difficulty calibration</h3>
   <p>Compute the transparent difficulty proxy from documented surface signals,
