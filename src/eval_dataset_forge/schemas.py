@@ -306,6 +306,42 @@ class AuditResult(ForgeModel):
 # --------------------------------------------------------------------------- #
 
 
+class CardMeta(ForgeModel):
+    """The parts of a dataset card no audit can compute: the curator's prose.
+
+    Purpose, construction rationale, recommended use, and non-goals are claims about
+    *intent*. A generator that invented them would be writing fiction with a machine's
+    authority, and a card that silently omitted them would let a reader mistake "unstated"
+    for "no restrictions". So they are supplied here, travel in the manifest, and the
+    rendered card names every one the curator left blank (see
+    :meth:`DatasetCard.missing_curator_sections`).
+
+    Stored on :class:`DatasetManifest` rather than read from a side file at render time, so
+    that a card regenerated from a release directory alone reproduces the card that shipped
+    in it, byte for byte. A card whose text lived outside the release could not be checked
+    against the release.
+    """
+
+    purpose: str = ""
+    construction: str = ""
+    recommended_use: str = ""
+    non_goals: list[str] = Field(default_factory=list)
+
+    def supplied(self) -> dict[str, bool]:
+        """Which curator sections carry text. Keys match :data:`CURATOR_SECTIONS`."""
+        return {
+            "purpose": bool(self.purpose.strip()),
+            "construction": bool(self.construction.strip()),
+            "recommended_use": bool(self.recommended_use.strip()),
+            "non_goals": bool(self.non_goals),
+        }
+
+
+# The card sections that come from a human, in the order a reader meets them. A tool can
+# fill every other section of a dataset card; it cannot fill these.
+CURATOR_SECTIONS = ("purpose", "construction", "recommended_use", "non_goals")
+
+
 class DatasetManifest(ForgeModel):
     """The provenance/inventory record written as ``manifest.json`` per release.
 
@@ -360,14 +396,29 @@ class DatasetManifest(ForgeModel):
     split_spec: SplitSpec | None = None
     excluded: list[dict[str, Any]] = Field(default_factory=list)
     dependence: dict[str, Any] = Field(default_factory=dict)
+    card_meta: CardMeta = Field(default_factory=CardMeta)
 
 
 class DatasetCard(ForgeModel):
     """Structured dataset card. Rendered to ``dataset_card.md`` (Milestone 11).
 
-    The card is generated *from* the audit and manifest so its "known issues"
-    always match what the pipeline actually found, rather than being written by
-    hand and drifting.
+    Built by :func:`eval_dataset_forge.reports.dataset_card.build_card` from exactly two
+    inputs — the release's ``manifest.json`` and its ``audit.json`` — so the card's "known
+    issues" cannot drift from what the pipeline found. Everything a curator asserts arrives
+    through :class:`CardMeta`, which travels inside the manifest for the same reason.
+
+    Two fields a conventional dataset card carries are **absent by arithmetic**, not by
+    taste. ``dataset_card.md`` is itself an artifact hashed into ``manifest.hashes``:
+
+    - It cannot print that hash table, because that would require the digest of the card's
+      bytes to appear inside the card's bytes.
+    - It cannot print ``created_at``, because the clock would then reach a hashed artifact
+      and every rebuild would differ from every other — collapsing the ``none`` version bump
+      that :mod:`eval_dataset_forge.datasets.versioning` defines. ``REPRODUCE.md`` omits the
+      timestamp for the same reason.
+
+    What the card prints instead is ``content_id`` and ``eval_id``, which are functions of
+    the examples rather than of the card.
     """
 
     dataset_id: NonEmptyStr
@@ -381,6 +432,22 @@ class DatasetCard(ForgeModel):
     limitations: list[str] = Field(default_factory=list)
     recommended_use: str = ""
     non_goals: list[str] = Field(default_factory=list)
+    identity: dict[str, str] = Field(default_factory=dict)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+
+    def missing_curator_sections(self) -> list[str]:
+        """The :data:`CURATOR_SECTIONS` this card leaves blank, in reading order.
+
+        A blank section is a fact about the dataset's documentation, not a rendering bug,
+        so the card states it and ``dataset-card --fail-on-incomplete`` can gate on it.
+        """
+        supplied = CardMeta(
+            purpose=self.purpose,
+            construction=self.construction,
+            recommended_use=self.recommended_use,
+            non_goals=self.non_goals,
+        ).supplied()
+        return [name for name in CURATOR_SECTIONS if not supplied[name]]
 
 
 class DatasetRelease(ForgeModel):
@@ -424,6 +491,7 @@ MODELS: dict[str, type[ForgeModel]] = {
         DifficultyScore,
         BootstrapResult,
         AuditResult,
+        CardMeta,
         DatasetManifest,
         DatasetCard,
         DatasetRelease,
@@ -435,6 +503,7 @@ __all__ = [
     "ForgeModel",
     "NonEmptyStr",
     "ExpectedOutput",
+    "CURATOR_SECTIONS",
     "KNOWN_TASK_FAMILIES",
     "Split",
     "DedupKind",
@@ -450,6 +519,7 @@ __all__ = [
     "DifficultyScore",
     "BootstrapResult",
     "AuditResult",
+    "CardMeta",
     "DatasetManifest",
     "DatasetCard",
     "DatasetRelease",

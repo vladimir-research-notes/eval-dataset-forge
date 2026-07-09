@@ -202,6 +202,34 @@ Note also that the split strategies do not estimate the same quantity, so their 
 are not interchangeable even at identical content — `adversarial` deliberately evaluates on a
 duplicate-free sub-population, on which the true system gap is larger.
 
+## A dataset card is a rendering of evidence, not evidence
+
+The card is generated from `manifest.json` and `audit.json` and recomputes nothing, so its
+"known issues" cannot drift from what the pipeline found. That guarantee is narrower than it
+sounds, in three directions.
+
+**Its counts inherit every upstream bound.** A card reporting `duplicates: near | 1 | heuristic
+(tfidf)` reports what a lexical threshold found. The paraphrase pair `ret-001`/`ret-002` is
+invisible to the audit, so it is invisible to the card. Every heuristic row is a lower bound and
+the table's caption says so — but a reader who skips the caption will read a zero as an absence.
+
+**Four sections are unverified claims.** `purpose`, `construction`, `recommended_use`, and
+`non_goals` come from the curator. The card labels them as the only unverified text on the page
+and names any the curator left blank, and `--fail-on-incomplete` can gate on that. Nothing
+checks whether they are *true*: a release whose curator wrote "suitable for clinical use" would
+render that sentence faithfully.
+
+**It cannot conditionally warn about the difficulty buckets.** `AuditResult` records the
+difficulty *distribution* but not the calibration verdict, so the card carries an unconditional
+note rather than a warning that fires only when the heuristic failed its permutation test. The
+verdict does reach the reader — through `known_limitations` and `recommendations`, printed
+verbatim — but it arrives two sections away from the table it qualifies.
+
+Finally, `dataset-card --check` verifies that *this* tool version still renders the shipped card.
+It is not `verify-release`, and it deliberately is not folded into it: a release that is
+byte-perfect must not fail verification on the day the card's wording improved. See
+[`DATASET_CARD.md`](DATASET_CARD.md) §3.
+
 ## Non-goals
 
 - Not a certifier of universal benchmark quality.

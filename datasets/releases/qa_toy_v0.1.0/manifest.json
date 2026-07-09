@@ -8,8 +8,9 @@
   "example_count": 14,
   "schema_version": "0.1.0",
   "hashes": {
-    "REPRODUCE.md": "sha256:455253f11a6871171fbd2dc9d6db908091ddf4e9634123a504c52ef0d8cbbb94",
-    "audit.json": "sha256:a1b4a7cc0a3907d196526e53db2b2ad25a9bc860314dfc39c2fa7fa488981981",
+    "REPRODUCE.md": "sha256:fa6298c28fdaf761fb5ee0478177ccb845fab84892edfbb66cc52f47d8c96216",
+    "audit.json": "sha256:0aa1bd67bd798cec8c5f8044d27be48ee675a148d396bea40ec0e3fdf43a838f",
+    "dataset_card.md": "sha256:557161af26b74c6904a1651b82ddbda7efc6bdcea1a33318e87420db9c895ed9",
     "examples.jsonl": "sha256:589e8aeec88392f07c17148c27ff62fbeb5c27801cbf3c7f264ccc1eab77e812",
     "splits/dev.jsonl": "sha256:c732f6d146c497202dbb71d5883f844638ff7ebaa78de4bd28db9ec1dc52aa64",
     "splits/test.jsonl": "sha256:9aea588790d95875250da6dfc66d57572281e2fefafb96b8f6327006b5542470",
@@ -86,7 +87,24 @@
       "3": 1
     },
     "duplicate_block_count": 2,
+    "blocks_by_split": {
+      "dev": 1,
+      "test": 2,
+      "train": 8
+    },
+    "straddling_block_count": 0,
     "near_method": "tfidf",
     "note": "effective_n is a property of a scored comparison, not of a dataset: it needs an intraclass correlation, which needs system scores. Resample these blocks, not the rows — see docs/STATISTICS.md."
+  },
+  "card_meta": {
+    "purpose": "Exercise and regression-test the eval-dataset-forge audit pipeline. Every defect this corpus contains was planted deliberately and is recorded as ground truth in `defects.yaml`, so each audit stage can be scored for recall against a known answer rather than reported as a bare count. The dataset exists to make the checks falsifiable; it does not exist to measure a system.\n",
+    "construction": "Fourteen hand-authored English question-answer pairs, synthetic and public-safe, with nine planted defect classes: an exact duplicate, a paraphrase near-duplicate, a duplicated source record, a mislabeled answer, two ambiguous questions, a missing gold answer, conflicting annotator labels, train/test overlap, and an answer leaked into its own prompt. Splits are built by the adversarial strategy, which keeps duplicate clusters out of `dev`/`test`; examples whose gold answer is unsettled are quarantined in `train` rather than deleted. No example derives from a real person, patient, or private record.\n",
+    "recommended_use": "Testing dataset-audit tooling: as a fixture for this repository's test suite, as a worked example of the release format, and as a demonstration that the audit stages rediscover defects a curator planted on purpose. Read the audit findings before reading the data.\n",
+    "non_goals": [
+      "Not a measure of question-answering capability. Fourteen examples with three in the evaluation splits cannot distinguish two systems; the confidence interval on any score computed here spans most of the unit interval.\n",
+      "Not a certification that the corpus is clean. It is deliberately dirty, and the audit reports what its heuristics detect — a lower bound, never a guarantee.\n",
+      "Not a benchmark. It has no leaderboard, no held-out set worth holding out, and no claim to represent any task distribution.\n",
+      "Not medical, legal, or security guidance, and not a source of factual knowledge.\n"
+    ]
   }
 }

@@ -99,7 +99,11 @@ evalforge smoke --out results/reports/smoke_audit.md   # all fixtures at once</c
   stage's recall; and for the same reason the statistics stage's design effect is a
   <em>lower bound</em> — dependence the dedup ladder cannot see produces no block, so it
   cannot widen an interval either.</p>
-  <p>The report and end-to-end smoke audit are assembled in Milestones 11–12.</p>
+  <p>Milestone 10 <a href="releases.html">publishes</a> the audit beside the data it describes, and
+  Milestone 11 renders it for a human as a <a href="dataset-card.html">dataset card</a> — generated
+  from <code>manifest.json</code> and <code>audit.json</code>, recomputing nothing, so a card and
+  the evidence in the same directory cannot disagree. The human-readable
+  <code>audit.md</code> and the end-to-end smoke audit are assembled in Milestone 12.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

@@ -25,7 +25,13 @@ from eval_dataset_forge import SCHEMA_VERSION, __version__
 from eval_dataset_forge.datasets import loader
 from eval_dataset_forge.datasets.versioning import content_id, eval_id
 from eval_dataset_forge.datasets.writer import sha256_bytes, sha256_file
-from eval_dataset_forge.schemas import AuditResult, DatasetExample, DatasetManifest, SplitSpec
+from eval_dataset_forge.schemas import (
+    AuditResult,
+    CardMeta,
+    DatasetExample,
+    DatasetManifest,
+    SplitSpec,
+)
 
 EXAMPLES_FILE = "examples.jsonl"
 MANIFEST_FILE = "manifest.json"
@@ -54,6 +60,7 @@ def build_manifest(
     source_content_id: str = "",
     known_limitations: Sequence[str] = (),
     license_notes: str = "",
+    card_meta: CardMeta | None = None,
 ) -> DatasetManifest:
     """Assemble the manifest for a release whose artifact bytes are already rendered.
 
@@ -62,7 +69,10 @@ def build_manifest(
     later ``stat`` happens to find, and ``build`` needs no filesystem at all.
 
     ``manifest.json`` itself is necessarily absent from ``artifacts``: a file cannot
-    contain its own digest.
+    contain its own digest. ``dataset_card.md`` is *not* absent, and that is why the release
+    builder calls this function twice — once to obtain a manifest the card can be rendered
+    from, and once more with the card's bytes in ``artifacts`` so its digest is recorded.
+    The card never reads ``hashes``, so the two manifests agree on everything the card used.
     """
     hashes = {name: sha256_bytes(data) for name, data in sorted(artifacts.items())}
 
@@ -96,6 +106,7 @@ def build_manifest(
         split_spec=split_spec,
         excluded=[dict(item) for item in excluded],
         dependence=dict(dependence or {}),
+        card_meta=card_meta or CardMeta(),
     )
 
 

@@ -1,0 +1,45 @@
+# Curator prose for the qa_toy dataset card. Validated against `CardMeta`
+# (src/eval_dataset_forge/schemas.py), which forbids unknown fields — a typo here raises at
+# build time rather than silently dropping a section from the card.
+#
+# Everything else on the card is generated from `manifest.json` and `audit.json`. These four
+# fields are the parts no audit can compute: they are claims about intent.
+#
+#   PYTHONPATH=src python3 -m eval_dataset_forge release \
+#     --dataset datasets/fixtures/qa_toy/examples.jsonl --dataset-id qa_toy \
+#     --card-meta datasets/fixtures/qa_toy/card.yaml ...
+
+purpose: >
+  Exercise and regression-test the eval-dataset-forge audit pipeline. Every defect this
+  corpus contains was planted deliberately and is recorded as ground truth in
+  `defects.yaml`, so each audit stage can be scored for recall against a known answer
+  rather than reported as a bare count. The dataset exists to make the checks falsifiable;
+  it does not exist to measure a system.
+
+construction: >
+  Fourteen hand-authored English question-answer pairs, synthetic and public-safe, with nine
+  planted defect classes: an exact duplicate, a paraphrase near-duplicate, a duplicated
+  source record, a mislabeled answer, two ambiguous questions, a missing gold answer,
+  conflicting annotator labels, train/test overlap, and an answer leaked into its own prompt.
+  Splits are built by the adversarial strategy, which keeps duplicate clusters out of
+  `dev`/`test`; examples whose gold answer is unsettled are quarantined in `train` rather than
+  deleted. No example derives from a real person, patient, or private record.
+
+recommended_use: >
+  Testing dataset-audit tooling: as a fixture for this repository's test suite, as a worked
+  example of the release format, and as a demonstration that the audit stages rediscover
+  defects a curator planted on purpose. Read the audit findings before reading the data.
+
+non_goals:
+  - >
+    Not a measure of question-answering capability. Fourteen examples with three in the
+    evaluation splits cannot distinguish two systems; the confidence interval on any score
+    computed here spans most of the unit interval.
+  - >
+    Not a certification that the corpus is clean. It is deliberately dirty, and the audit
+    reports what its heuristics detect — a lower bound, never a guarantee.
+  - >
+    Not a benchmark. It has no leaderboard, no held-out set worth holding out, and no claim
+    to represent any task distribution.
+  - >
+    Not medical, legal, or security guidance, and not a source of factual knowledge.

@@ -80,15 +80,62 @@ Notes:
 | `tool_version` | str | **Milestone 10.** the `evalforge` version that built the release |
 | `split_spec` | obj \| null | **Milestone 10.** the `SplitSpec` the splits were built from (strategy, seed, ratios, constraints) |
 | `excluded` | list[obj] | **Milestone 10.** `{example_id, reason, kept_id, method}` per removed example |
-| `dependence` | obj | **Milestone 10.** `{block_count, block_size_histogram, duplicate_block_count, near_method}` |
+| `dependence` | obj | **Milestone 10.** `{block_count, block_size_histogram, duplicate_block_count, near_method}`, plus **Milestone 11**'s `{blocks_by_split, straddling_block_count}` |
+| `card_meta` | obj | **Milestone 11.** the `CardMeta` prose the dataset card renders |
 
-The Milestone 10 fields are **additive with defaults**, so `SCHEMA_VERSION` did not move and a
-pre-existing manifest still loads.
+The Milestone 10 and 11 fields are **additive with defaults**, so `SCHEMA_VERSION` did not move
+and a pre-existing manifest still loads.
 
 `dependence` deliberately carries **no `effective_n`**. Effective sample size is
 `n / (1 + (m̄ − 1)·ICC)` and the ICC is a property of a *scored comparison*, not of a dataset —
 it needs system scores. The block structure is what a reader needs to compute it for their own
 systems. See [`RELEASES.md`](RELEASES.md) §4 and [`STATISTICS.md`](STATISTICS.md).
+
+`blocks_by_split` counts the independent blocks each split *touches*, because a corpus-wide
+block count does not bound a claim about a **test** score — the test split's own block count
+does. A block straddling a boundary is counted in every split it reaches, so the per-split
+counts sum to at least `block_count`, and `straddling_block_count` says by how much.
+
+## CardMeta (Milestone 11)
+
+The parts of a dataset card no audit can compute: claims about intent. Supplied via
+`release --card-meta <file.yaml>`, validated (unknown fields rejected), and stored in
+`manifest.card_meta` so a card regenerated from a release directory alone reproduces the card
+that shipped in it.
+
+| field | type | notes |
+|-------|------|-------|
+| `purpose` | str | what the dataset is for |
+| `construction` | str | how it was built |
+| `recommended_use` | str | what a reader may reasonably do with it |
+| `non_goals` | list[str] | what it must not be used for |
+
+A blank section is **named** in the rendered card, never quietly omitted: a reader must be able
+to tell *"no restrictions"* from *"nobody wrote any down"*. `dataset-card --fail-on-incomplete`
+gates on it. `card_meta` is a *packaging* field for versioning — rewriting a non-goal changes no
+number, so it forces a `patch` and never a `minor`.
+
+## DatasetCard (Milestone 11)
+
+Built by `build_card(manifest, audit)` from exactly those two artifacts; nothing is recomputed.
+Rendered to `dataset_card.md` in the release, and optionally to a standalone HTML page.
+
+| field | type | notes |
+|-------|------|-------|
+| `dataset_id`, `version` | str | must match the manifest **and** the audit, or the build refuses |
+| `purpose`, `construction`, `recommended_use`, `non_goals` | — | from `manifest.card_meta` |
+| `schema_summary` | str | generated: fields, schema version, task families present |
+| `splits` | obj | `{total_examples, by_split{examples, blocks, share}, blocks{…}, strategy}` |
+| `known_issues` | list[str] | generated from the audit's non-zero findings, with example ids |
+| `audit_findings` | obj | counts per dimension, difficulty distribution, recommendations, certainty |
+| `limitations` | list[str] | `manifest.known_limitations`, verbatim |
+| `identity` | obj | `content_id`, `eval_id`, `source_content_id`, `schema_version`, `audit_id` |
+| `provenance` | obj | source files, exclusions, tool version, license, near-duplicate method |
+
+A card prints **no file hashes** and **no timestamp**, and both absences are arithmetic rather
+than taste: `dataset_card.md` is itself hashed into `manifest.hashes`, so its own digest cannot
+appear inside it, and a clock in a hashed artifact would make `versioning.py`'s `none` bump
+unreachable. See [`DATASET_CARD.md`](DATASET_CARD.md).
 
 ## AuditResult
 
@@ -152,7 +199,7 @@ datasets/releases/<dataset_id>_v<version>/
   manifest.json         # DatasetManifest — the only artifact nothing hashes
   audit.json            # AuditResult, computed over the data that shipped
   audit.md              # human-readable audit report          (Milestone 12 — not written yet)
-  dataset_card.md       # DatasetCard rendered to Markdown     (Milestone 11 — not written yet)
+  dataset_card.md       # DatasetCard rendered to Markdown, from manifest.json + audit.json
   splits/
     train.jsonl
     dev.jsonl

@@ -55,7 +55,7 @@
     <tr><td>8</td><td>Difficulty calibration</td><td>transparent heuristics + difficulty distribution reports</td><td><span class="status done">done</span></td></tr>
     <tr><td>9</td><td>Statistics &amp; ranking stability</td><td>bootstrap CIs, paired comparison, ranking stability, small-N warnings</td><td><span class="status done">done</span></td></tr>
     <tr><td>10</td><td>Release builder</td><td>dataset JSONL, manifest, split files, audit summary, hashes, versioned release dir</td><td><span class="status done">done</span></td></tr>
-    <tr><td>11</td><td>Dataset card generator</td><td>Markdown + optional HTML cards</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>11</td><td>Dataset card generator</td><td>Markdown + optional HTML cards</td><td><span class="status done">done</span></td></tr>
     <tr><td>12</td><td>Smoke audit &amp; results</td><td>full offline audit over all fixtures → results/ + docs/RESULTS.md</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>13</td><td>Integration contracts</td><td>documented contracts for code-agent-runtime, BioAgentBench, LLM regression, scientific-claim-verifier, agent-control-bench</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>14</td><td>Final portfolio report</td><td>README + docs to portfolio quality</td><td><span class="status pending">planned</span></td></tr>
@@ -244,8 +244,28 @@
   rank the strategies. See the <a href="releases.html">Releases</a> page.</p>
 
   <h3>Milestone 11 — Dataset card generator</h3>
-  <p>Render a dataset card (Markdown, optional HTML) directly from the audit and
-  manifest, so its "known issues" always match what the pipeline found.</p>
+  <p>Renders a dataset card (Markdown, optional standalone HTML) from exactly two inputs — a
+  release's <code>manifest.json</code> and its <code>audit.json</code> — so its "known issues"
+  cannot drift from what the pipeline found. Nothing is recomputed: a view that recomputes its own
+  source is not a view. Adds <code>evalforge dataset-card</code> and the
+  <code>reports/</code> package.</p>
+  <p>The distinguishing work was noticing that a card is an <em>artifact of the release it
+  describes</em>, and hashed into <code>manifest.hashes</code> like any other. Two fields every
+  dataset card in the wild carries therefore become impossible: the file-hash table (its own digest
+  would have to appear inside its own bytes) and <code>created_at</code> (a clock in a hashed
+  artifact makes Milestone 10's <code>none</code> version bump unreachable). Both absences are
+  pinned by tests. The consequence is that the release builder assembles its manifest
+  <strong>twice</strong> — once for the card to render from, once with the card's hash in it — and
+  the two differ only in the one field <code>build_card</code> refuses to read.</p>
+  <p>It also answers the question Milestone 10 left open. A card saying "14 examples" about a
+  corpus of 11 independent blocks is not lying, but a reader spends that 14 as a sample size. The
+  card prints both, and per split — because the number that bounds a claim about a <em>test</em>
+  score is the test split's block count, which is neither. <code>manifest.dependence</code> gained
+  <code>blocks_by_split</code> to make that printable. Curator prose (purpose, construction,
+  recommended use, non-goals) is the one thing no audit can compute: it travels in
+  <code>manifest.card_meta</code>, blank sections are <em>named</em> rather than omitted, and
+  rewriting one is a <code>patch</code>. See the <a href="dataset-card.html">Dataset card</a>
+  page.</p>
 
   <h3>Milestone 12 — Smoke audit &amp; results</h3>
   <p>Run the whole pipeline over every fixture, fully offline, and write the

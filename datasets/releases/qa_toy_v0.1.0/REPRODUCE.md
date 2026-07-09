@@ -15,6 +15,7 @@ PYTHONPATH=src python3 -m eval_dataset_forge release \
   --stratify-by task_family \
   --quarantine-blocking \
   --license-notes 'Synthetic fixture data, CC0-1.0. No real personal, clinical, or patient data.' \
+  --card-meta datasets/fixtures/qa_toy/card.yaml \
   --version 0.1.0 \
   --out datasets/releases/qa_toy_v0.1.0
 ```
@@ -55,8 +56,15 @@ None. Every source example is in this release.
 
 ## Not in this bundle yet
 
-- `dataset_card.md` — Milestone 11.
 - `audit.md`, the human-readable rendering of `audit.json` — Milestone 12.
+
+`dataset_card.md` is present, and is a rendering of `manifest.json` + `audit.json`. Check that
+this tool version still reproduces it:
+
+```bash
+PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
+  --release datasets/releases/qa_toy_v0.1.0 --check
+```
 
 ## Source files
 

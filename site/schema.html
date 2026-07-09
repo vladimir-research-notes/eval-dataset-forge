@@ -73,11 +73,12 @@
   examples.jsonl        the data (validated)
   manifest.json         DatasetManifest: hashes, splits, counts, audit summary, identities
   audit.json / audit.md AuditResult + human-readable report   (audit.md: M12)
-  dataset_card.md       purpose, construction, known issues, non-goals   (M11)
+  dataset_card.md       DatasetCard rendered from manifest.json + audit.json
   splits/{train,dev,test}.jsonl
   REPRODUCE.md          exact rebuild commands</code></pre>
 
-  <p><code>DatasetManifest</code> gained seven fields in Milestone 10 — additive, with defaults, so
+  <p><code>DatasetManifest</code> gained seven fields in Milestone 10 and one more
+  (<code>card_meta</code>) in Milestone 11 — all additive, with defaults, so
   <code>SCHEMA_VERSION</code> is unchanged and pre-existing manifests still load:</p>
   <table>
     <tr><th>field</th><th>meaning</th></tr>
@@ -87,7 +88,8 @@
     <tr><td><code>tool_version</code></td><td>the builder that produced the bundle</td></tr>
     <tr><td><code>split_spec</code></td><td>strategy, seed, ratios — provenance, not identity</td></tr>
     <tr><td><code>excluded</code></td><td>every removed example, its reason, and the id of the member kept</td></tr>
-    <tr><td><code>dependence</code></td><td>block structure (counts and size histogram), <em>not</em> <code>effective_n</code></td></tr>
+    <tr><td><code>dependence</code></td><td>block structure (counts, size histogram, and — since M11 — <code>blocks_by_split</code> and <code>straddling_block_count</code>), <em>not</em> <code>effective_n</code></td></tr>
+    <tr><td><code>card_meta</code></td><td><strong>M11.</strong> the curator prose the <a href="dataset-card.html">dataset card</a> renders: purpose, construction, recommended use, non-goals. Packaging — rewriting one is a <code>patch</code></td></tr>
   </table>
   <p>Both aggregate ids bind a purpose tag <em>and</em> <code>SCHEMA_VERSION</code>, so a content id
   can never be read as an eval id and a schema bump changes every id by construction. The bytes that

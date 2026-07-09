@@ -30,7 +30,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status scaffold">Milestone 10 — release builder</span></p>
+  <p><span class="status scaffold">Milestone 11 — dataset card generator</span></p>
   <h1>Make evaluation datasets trustworthy</h1>
   <p class="lede">A benchmark that reports one accuracy number hides most of what
   decides whether that number means anything. eval-dataset-forge turns
@@ -116,7 +116,12 @@
   regenerates it byte-for-byte — carrying <em>two</em> dataset identities, because holding the
   data fixed and varying only the split seed moves the reported headline number with
   <strong>sd 0.130</strong> against a top-two system gap of <strong>0.036</strong>, which a
-  content hash cannot see. The remaining audit subsystems follow milestone by milestone — see
+  content hash cannot see. Milestone 11 generates the
+  <a href="dataset-card.html">dataset card</a> from the manifest and the audit, so its "known
+  issues" cannot drift; because the card is itself a hashed artifact of the release, it can print
+  neither a file-hash table nor a build timestamp, and it reports the corpus as
+  <em>14 examples in 11 independent blocks</em> rather than letting a reader spend 14 as a sample
+  size. The remaining audit subsystems follow milestone by milestone — see
   <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
   contract.</p>
 

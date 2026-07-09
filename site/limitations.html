@@ -149,6 +149,15 @@
       whether two numbers are answering the same question. Every count a release carries — block
       count, duplicate clusters, leakage flags — is also a <em>lower bound</em>, inheriting the
       deduplication stage's lexical recall.</li>
+    <li><strong>A <a href="dataset-card.html">dataset card</a> is a rendering of evidence, not
+      evidence.</strong> It is generated from <code>manifest.json</code> and <code>audit.json</code>
+      and recomputes nothing, so its "known issues" cannot drift — a guarantee narrower than it
+      sounds. Its counts inherit every upstream bound, so a heuristic zero is what the check found,
+      not what is there. Four sections (purpose, construction, recommended use, non-goals) are
+      unverified curator claims; the card labels them as such and names any left blank, but nothing
+      checks whether they are <em>true</em>. And because <code>AuditResult</code> records the
+      difficulty distribution but not the calibration verdict, the card carries an unconditional
+      note rather than a warning that fires only when the heuristic failed its permutation test.</li>
   </ul>
 
   <h2>Non-goals</h2>

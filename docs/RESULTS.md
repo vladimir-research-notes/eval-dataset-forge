@@ -464,12 +464,66 @@ PYTHONPATH=src python3 -m eval_dataset_forge verify-release \
   --release datasets/releases/qa_toy_v0.1.0
 ```
 
+### Dataset card (Milestone 11)
+
+The committed demo release ships
+[`dataset_card.md`](../datasets/releases/qa_toy_v0.1.0/dataset_card.md), generated from that
+release's `manifest.json` and `audit.json`. Nothing in it is recomputed and nothing is
+hand-written except four prose sections, which come from
+[`card.yaml`](../datasets/fixtures/qa_toy/card.yaml) and are recorded in `manifest.card_meta`.
+Method and failure modes: [`DATASET_CARD.md`](DATASET_CARD.md).
+
+**The card's headline is two numbers, because one of them is not a sample size.**
+
+| what the card prints | qa_toy v0.1.0 |
+|---|---|
+| examples | 14 |
+| independent blocks | **11** |
+| blocks in `test` | **2** (of 2 examples) |
+| blocks in `train` | 8 (of 11 examples) |
+| blocks straddling a split boundary | 0 (adversarial strategy) |
+
+A reader spends the first number as a sample size. The number that governs a confidence
+interval on a **test** score is the third. This answers the question Milestone 10 left open, and
+it is why `manifest.dependence` gained `blocks_by_split`.
+
+**Two absences that are arithmetic, not taste.** `dataset_card.md` is an artifact hashed into
+`manifest.hashes`, so it can print neither that table (its own digest would have to appear
+inside its own bytes) nor a build timestamp (a clock in a hashed artifact makes the `none`
+version bump unreachable — the defect Milestone 10 avoided in `REPRODUCE.md`). Measured:
+
+```text
+two builds of qa_toy, created_at 2020-01-01 vs 2031-12-31, everything else fixed
+  same    REPRODUCE.md        same    dataset_card.md     same    examples.jsonl
+  same    audit.json          same    splits/{train,dev,test}.jsonl
+  DIFFER  manifest.json
+```
+
+**Editing curator prose is a `patch`.** It changes no number and cannot move a score, so
+`card_meta` is a packaging field:
+
+```text
+delta: 0.1.0 → 0.1.1 (patch bump; scores still comparable)
+  content_id : same
+  eval_id    : same
+  - packaging only: hashes, card_meta
+```
+
+Reproduce:
+
+```bash
+python3 -m pytest -q tests/test_reports.py     # 64 tests
+PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
+  --release datasets/releases/qa_toy_v0.1.0 --check          # exit 0
+PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
+  --release datasets/releases/qa_toy_v0.1.0 --fail-on-incomplete   # exit 0: 4/4 sections
+```
+
 ## What will be reported here
 
 - Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII
   flags.
 - Difficulty distributions per fixture and per split.
-- At least one generated dataset card.
 
 ## Reproduce
 

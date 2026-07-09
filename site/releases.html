@@ -217,13 +217,14 @@ PYTHONPATH=src python3 -m eval_dataset_forge verify-release \
   </ul>
 
   <h3>Status</h3>
-  <p>Implemented in Milestone 10. <strong>1595 tests pass</strong> (1523 prior + 72 release).
-  The committed demo release passes all ten checks; the command printed inside its own
-  <code>REPRODUCE.md</code> regenerates it byte-for-byte, verified under several
-  <code>PYTHONHASHSEED</code> values in separate interpreters. A single flipped byte in
-  <code>examples.jsonl</code> trips three independent checks. <code>audit.md</code> and
-  <code>dataset_card.md</code> are not written yet — every <code>REPRODUCE.md</code> says which two
-  artifacts the bundle is missing and which milestone lands them (12 and 11).</p>
+  <p>Implemented in Milestone 10. The committed demo release passes all ten checks; the command
+  printed inside its own <code>REPRODUCE.md</code> regenerates it byte-for-byte, verified under
+  several <code>PYTHONHASHSEED</code> values in separate interpreters. A single flipped byte in
+  <code>examples.jsonl</code> trips three independent checks. Milestone 11 added
+  <a href="dataset-card.html"><code>dataset_card.md</code></a> to the bundle — hashed like every
+  other artifact, which is why the builder now assembles its manifest twice. <code>audit.md</code>
+  is still missing, and every <code>REPRODUCE.md</code> says so and names the milestone that lands
+  it (12).</p>
 
   <h3>Open questions</h3>
   <ul>

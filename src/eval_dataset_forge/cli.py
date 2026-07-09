@@ -23,7 +23,6 @@ from eval_dataset_forge import SCHEMA_VERSION, __version__
 # the command name to the milestone number that lands it (see docs/PLAN.md).
 _PENDING = {
     "audit": 12,
-    "dataset-card": 11,
     "smoke": 12,
 }
 
@@ -297,6 +296,10 @@ def _release_command(args: argparse.Namespace) -> str:
         parts.append("--ignore-answer-gate")
     if args.license_notes:
         parts.append(f"--license-notes {args.license_notes!r}")
+    # `--card-meta` determines the bytes of `dataset_card.md`, which is a hashed artifact, so
+    # a reproduction without it produces a different release.
+    if args.card_meta:
+        parts.append(f"--card-meta {args.card_meta}")
     return " \\\n  ".join(parts)
 
 
@@ -311,6 +314,7 @@ def cmd_release(args: argparse.Namespace) -> int:
     lazily so the stdlib-only commands keep working without the scientific stack.
     """
     from eval_dataset_forge.datasets.release import build_release, format_report, write_release
+    from eval_dataset_forge.reports import load_card_meta
 
     try:
         report = build_release(
@@ -327,6 +331,7 @@ def cmd_release(args: argparse.Namespace) -> int:
             quarantine_blocking=args.quarantine_blocking,
             near_require_same_answer=not args.ignore_answer_gate,
             license_notes=args.license_notes,
+            card_meta=load_card_meta(args.card_meta) if args.card_meta else None,
             previous=args.previous,
         )
     except ValueError as error:
@@ -356,6 +361,60 @@ def cmd_verify_release(args: argparse.Namespace) -> int:
     else:
         print(format_verify(report))
     return 0 if report.ok else 1
+
+
+def cmd_dataset_card(args: argparse.Namespace) -> int:
+    """Render a release's dataset card from its ``manifest.json`` and ``audit.json``.
+
+    Nothing is recomputed: every count comes from the audit that shipped beside the data, so
+    the card cannot disagree with the evidence in the same directory.
+
+    Exit code is 0 unless ``--check`` finds that this tool version no longer renders the card
+    the release carries, or ``--fail-on-incomplete`` is set and the curator left a section of
+    the card blank. ``--check`` is a different question from ``verify-release``: that one asks
+    whether the bytes match the manifest (any tool version can answer it); this one asks
+    whether the *renderer* has moved. The reports package is imported lazily so the
+    stdlib-only commands keep working without the scientific stack.
+    """
+    from eval_dataset_forge.reports import (
+        card_from_release,
+        card_json,
+        check_card,
+        format_card,
+        write_card,
+    )
+
+    if args.check:
+        ok, message = check_card(args.release)
+        print(("ok: " if ok else "drift: ") + message)
+        return 0 if ok else 1
+
+    try:
+        card = card_from_release(args.release)
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(card_json(card))
+    elif not args.out and not args.html:
+        from eval_dataset_forge.reports.dataset_card import render_markdown
+
+        print(render_markdown(card).decode("utf-8"), end="")
+    else:
+        print(format_card(card))
+
+    written = write_card(card, markdown_path=args.out, html_path=args.html)
+    for kind, path in sorted(written.items()):
+        print(f"wrote {kind} card to {path}", file=sys.stderr)
+
+    missing = card.missing_curator_sections()
+    if missing:
+        print(
+            f"note: {len(missing)} curator section(s) unwritten: {', '.join(missing)}",
+            file=sys.stderr,
+        )
+    return 1 if args.fail_on_incomplete and missing else 0
 
 
 def _utc_now() -> str:
@@ -631,6 +690,13 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_release.add_argument("--license-notes", default="", help="license text for the manifest")
     p_release.add_argument(
+        "--card-meta",
+        metavar="PATH",
+        help="YAML/JSON file of curator prose for the dataset card (purpose, construction, "
+        "recommended_use, non_goals). Recorded in manifest.card_meta so the card can be "
+        "regenerated from the release alone; sections left out are named in the card",
+    )
+    p_release.add_argument(
         "--fail-on-leakage",
         action="store_true",
         help="exit 1 if the built splits still contain a cross-split duplicate cluster",
@@ -651,8 +717,31 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_card = sub.add_parser("dataset-card", help="generate a dataset card for a release")
     p_card.add_argument("--release", required=True, help="path to a release directory")
-    p_card.add_argument("--out", required=True, help="output markdown path")
-    p_card.set_defaults(func=_cmd_pending("dataset-card"))
+    p_card.add_argument(
+        "--out", help="output markdown path (default: print the card to stdout)"
+    )
+    p_card.add_argument(
+        "--html",
+        metavar="PATH",
+        help="also write a standalone HTML card (no scripts, no network, inline stylesheet)",
+    )
+    p_card.add_argument(
+        "--check",
+        action="store_true",
+        help="exit 1 if this tool version no longer renders the dataset_card.md the release "
+        "ships. Asks whether the renderer moved, not whether the bytes are intact — for the "
+        "latter use verify-release",
+    )
+    p_card.add_argument(
+        "--fail-on-incomplete",
+        action="store_true",
+        help="exit 1 when the curator left a purpose, construction, recommended_use, or "
+        "non_goals section unwritten",
+    )
+    p_card.add_argument(
+        "--json", action="store_true", help="emit the DatasetCard as JSON instead of Markdown"
+    )
+    p_card.set_defaults(func=cmd_dataset_card)
 
     p_smoke = sub.add_parser("smoke", help="run a full smoke audit over the fixture datasets")
     p_smoke.add_argument("--out", required=True, help="output markdown report path")

@@ -24,10 +24,16 @@ accepting one, because on this repo's own corpus a rebuild at a different split 
 the dataset identical and moves the headline number by 3.5× the gap between the two systems
 being compared.
 
-What this module does *not* write: ``dataset_card.md`` (Milestone 11) and the human-readable
-``audit.md`` (Milestone 12). The layout in ``docs/PLAN.md`` §5D lists both; a release built
-today is missing them, and ``REPRODUCE.md`` says so rather than pretending the bundle is
-complete.
+**4. A card is an artifact, so it is hashed — and therefore blind to the hashes.**
+``dataset_card.md`` (Milestone 11) is rendered from the manifest, and its digest belongs in
+that manifest. The order is forced: build a manifest, render the card from it, rebuild the
+manifest with the card's bytes included. The two manifests differ only in ``hashes``, which
+:func:`~eval_dataset_forge.reports.dataset_card.build_card` does not read — nor ``created_at``,
+for the reason ``REPRODUCE.md`` carries no timestamp either.
+
+What this module still does *not* write: the human-readable ``audit.md`` (Milestone 12). The
+layout in ``docs/PLAN.md`` §5D lists it; a release built today is missing it, and
+``REPRODUCE.md`` says so rather than pretending the bundle is complete.
 """
 
 from __future__ import annotations
@@ -60,8 +66,11 @@ from eval_dataset_forge.dedup import DedupReport, find_duplicates
 from eval_dataset_forge.difficulty import DifficultyReport, score_dataset
 from eval_dataset_forge.labels import LabelAuditReport, audit_labels
 from eval_dataset_forge.leakage import LeakageReport, find_leakage
+from eval_dataset_forge.reports.dataset_card import CARD_FILE, build_card, render_markdown
 from eval_dataset_forge.schemas import (
     AuditResult,
+    CardMeta,
+    DatasetCard,
     DatasetExample,
     DatasetManifest,
     DatasetRelease,
@@ -138,6 +147,11 @@ class ReleaseReport:
     def audit(self) -> AuditResult:
         assert self.release.audit is not None
         return self.release.audit
+
+    @property
+    def card(self) -> DatasetCard:
+        assert self.release.card is not None
+        return self.release.card
 
     def counts(self) -> dict[str, int]:
         return {
@@ -237,16 +251,33 @@ def _dependence(examples: Sequence[DatasetExample], dedup: DedupReport) -> dict[
     ICC is a property of a *system's scores* on the blocks, not of the blocks. A dataset
     that quoted one would be quoting an assumed ICC. Milestone 9 measures it per system;
     this records what that measurement needs.
+
+    ``blocks_by_split`` counts the blocks each split *touches*, because a corpus-wide block
+    count does not bound a claim about a test score — the test split's own block count does,
+    and a dataset card that printed only the corpus number would let a reader spend the wrong
+    sample size (Milestone 11). A block whose members straddle a boundary is counted in every
+    split it reaches, so the per-split counts sum to at least ``block_count``;
+    ``straddling_block_count`` says how far. Under the adversarial strategy it is zero, and
+    a non-zero value is the same defect ``residual_overlap`` reports, counted differently.
     """
     blocks = duplicate_blocks(examples, dedup)
+    split_of = {example.example_id: str(example.split) for example in examples}
     histogram: dict[str, int] = {}
+    blocks_by_split: dict[str, int] = {}
+    straddling = 0
     for block in blocks:
         key = str(block.size)
         histogram[key] = histogram.get(key, 0) + 1
+        touched = {split_of[example_id] for example_id in block.example_ids}
+        straddling += len(touched) > 1
+        for name in touched:
+            blocks_by_split[name] = blocks_by_split.get(name, 0) + 1
     return {
         "block_count": len(blocks),
         "block_size_histogram": dict(sorted(histogram.items(), key=lambda kv: int(kv[0]))),
         "duplicate_block_count": sum(1 for block in blocks if block.duplicate),
+        "blocks_by_split": dict(sorted(blocks_by_split.items())),
+        "straddling_block_count": straddling,
         "near_method": dedup.near_method,
         "note": (
             "effective_n is a property of a scored comparison, not of a dataset: it needs an "
@@ -457,8 +488,15 @@ anyone able to rewrite the data can rewrite the digests that describe it.
 
 ## Not in this bundle yet
 
-- `dataset_card.md` — Milestone 11.
 - `audit.md`, the human-readable rendering of `audit.json` — Milestone 12.
+
+`dataset_card.md` is present, and is a rendering of `manifest.json` + `audit.json`. Check that
+this tool version still reproduces it:
+
+```bash
+PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \\
+  --release datasets/releases/{dataset_id}_v{version} --check
+```
 
 ## Source files
 
@@ -530,6 +568,7 @@ def build_release(
     near_require_same_answer: bool = True,
     difficulty_resamples: int = DEFAULT_DIFFICULTY_RESAMPLES,
     license_notes: str = "",
+    card_meta: CardMeta | None = None,
     previous: str | Path | None = None,
 ) -> ReleaseReport:
     """Build a versioned release from one or more source files. Nothing is written.
@@ -585,8 +624,19 @@ def build_release(
     difficulty = score_dataset(assigned, n_resamples=difficulty_resamples, seed=seed)
     dependence = _dependence(assigned, dedup)
 
-    def assemble(at_version: str) -> tuple[AuditResult, dict[str, bytes], DatasetManifest]:
-        """Everything downstream of the audit stages, at a given version string."""
+    def assemble(
+        at_version: str,
+    ) -> tuple[AuditResult, DatasetCard, dict[str, bytes], DatasetManifest]:
+        """Everything downstream of the audit stages, at a given version string.
+
+        The manifest is built twice. ``dataset_card.md`` is an artifact, so its digest belongs
+        in ``manifest.hashes``; the card is rendered *from* a manifest, so a manifest must
+        exist before the card does. The first manifest is the one the card reads, the second
+        is the one that records the card's hash, and they differ in ``hashes`` alone —
+        which :func:`~eval_dataset_forge.reports.dataset_card.build_card` never reads. That
+        blindness is not a convenience: a card quoting its own digest would need that digest
+        to appear inside the bytes it is the digest of.
+        """
         audit = build_audit(
             dataset_id,
             at_version,
@@ -614,22 +664,28 @@ def build_release(
             },
         )
         artifacts = _render_artifacts(assigned, split_report, audit, reproduce)
-        manifest = build_manifest(
-            dataset_id=dataset_id,
-            version=at_version,
-            created_at=created_at,
-            examples=assigned,
-            artifacts=artifacts,
-            source_files=source_files,
-            audit=audit,
-            split_spec=split_report.spec,
-            excluded=[item.to_dict() for item in exclusions],
-            dependence=dependence,
-            source_content_id=source_id,
-            known_limitations=_known_limitations(difficulty, dedup),
-            license_notes=license_notes,
-        )
-        return audit, artifacts, manifest
+
+        def manifest_over(rendered: Mapping[str, bytes]) -> DatasetManifest:
+            return build_manifest(
+                dataset_id=dataset_id,
+                version=at_version,
+                created_at=created_at,
+                examples=assigned,
+                artifacts=rendered,
+                source_files=source_files,
+                audit=audit,
+                split_spec=split_report.spec,
+                excluded=[item.to_dict() for item in exclusions],
+                dependence=dependence,
+                source_content_id=source_id,
+                known_limitations=_known_limitations(difficulty, dedup),
+                license_notes=license_notes,
+                card_meta=card_meta,
+            )
+
+        card = build_card(manifest_over(artifacts), audit)
+        artifacts[CARD_FILE] = render_markdown(card)
+        return audit, card, artifacts, manifest_over(artifacts)
 
     resolved = version
     delta: ReleaseDelta | None = None
@@ -642,7 +698,7 @@ def build_release(
         # would differ from the previous release in `hashes` no matter what the data did, and
         # every rebuild would report at least a `patch`. Assembling the candidate at the
         # previous version is what makes `none` reachable and `patch` meaningful.
-        _, _, candidate = assemble(previous_manifest.version)
+        *_, candidate = assemble(previous_manifest.version)
         delta = compare(previous_manifest, previous_examples, candidate, assigned)
         if version == "auto":
             resolved = delta.recommended_version
@@ -655,7 +711,7 @@ def build_release(
     elif version == "auto":
         raise ValueError("--version auto needs --previous to compare against")
 
-    audit, artifacts, manifest = assemble(resolved)
+    audit, card, artifacts, manifest = assemble(resolved)
     artifacts[MANIFEST_FILE] = render_json(manifest.model_dump(mode="json"))
 
     warnings = list(split_report.warnings)
@@ -668,7 +724,9 @@ def build_release(
         warnings.extend(delta.warnings)
 
     return ReleaseReport(
-        release=DatasetRelease(manifest=manifest, examples=list(assigned), audit=audit),
+        release=DatasetRelease(
+            manifest=manifest, examples=list(assigned), audit=audit, card=card
+        ),
         split_report=split_report,
         dedup=dedup,
         labels=labels,

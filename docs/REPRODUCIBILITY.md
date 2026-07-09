@@ -88,10 +88,15 @@ PYTHONPATH=src python3 -m eval_dataset_forge stats \
 # Regenerate the committed synthetic score fixture (byte-identical; --check verifies).
 python3 scripts/make_demo_scores.py --check
 
-# Generate a dataset card for the release.
+# Generate a dataset card for the release (Markdown + a standalone HTML page).
 PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
-  --release datasets/releases/qa_toy_v0.1/ \
-  --out results/reports/qa_toy_dataset_card.md
+  --release datasets/releases/qa_toy_v0.1.0 \
+  --out results/reports/qa_toy_dataset_card.md \
+  --html results/reports/qa_toy_dataset_card.html
+
+# Does this tool version still render the card the release shipped? (exit 1 on drift)
+PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
+  --release datasets/releases/qa_toy_v0.1.0 --check
 
 # Run the full smoke audit over all fixtures.
 PYTHONPATH=src python3 -m eval_dataset_forge smoke \

@@ -89,6 +89,11 @@ BUMP_LEVELS = ("none", "patch", "minor", "major")
 # Manifest fields that describe the *packaging* rather than the data. A difference in one
 # of these, with identity unchanged, is a ``patch``. ``created_at`` is absent on purpose:
 # a rebuild at a later clock reading is not a new release.
+#
+# ``card_meta`` is listed even though a rewritten dataset card already changes ``hashes``.
+# The redundancy is the point: a bundle built without a card would otherwise report ``none``
+# for a release whose stated purpose and non-goals had been rewritten, and "nothing but the
+# clock" would be false.
 _PACKAGING_FIELDS = (
     "hashes",
     "source_files",
@@ -99,6 +104,7 @@ _PACKAGING_FIELDS = (
     "excluded",
     "dependence",
     "splits",
+    "card_meta",
 )
 
 _SEMVER = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")

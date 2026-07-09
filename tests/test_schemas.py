@@ -24,6 +24,7 @@ from eval_dataset_forge.schemas import (
     MODELS,
     AuditResult,
     BootstrapResult,
+    CardMeta,
     DatasetCard,
     DatasetExample,
     DatasetManifest,
@@ -101,6 +102,12 @@ def _one_of_each() -> dict[str, object]:
         difficulty_distribution={"easy": 3, "medium": 2, "hard": 1},
         recommendations=["drop near-duplicate cluster qa-001/qa-002"],
     )
+    card_meta = CardMeta(
+        purpose="demonstrate the audit pipeline",
+        construction="hand-authored synthetic examples with planted defects",
+        recommended_use="pipeline demonstration only",
+        non_goals=["certifying universal benchmark quality"],
+    )
     manifest = DatasetManifest(
         dataset_id="qa_toy",
         version="0.1.0",
@@ -112,6 +119,7 @@ def _one_of_each() -> dict[str, object]:
         audit_results=audit.summary(),
         known_limitations=["heuristic near-dup detection can miss paraphrases"],
         license_notes="synthetic; MIT",
+        card_meta=card_meta,
     )
     card = DatasetCard(
         dataset_id="qa_toy",
@@ -133,6 +141,7 @@ def _one_of_each() -> dict[str, object]:
         "DifficultyScore": difficulty,
         "BootstrapResult": boot,
         "AuditResult": audit,
+        "CardMeta": card_meta,
         "DatasetManifest": manifest,
         "DatasetCard": card,
         "DatasetRelease": release,
@@ -154,6 +163,7 @@ def test_registry_covers_every_documented_model() -> None:
         "DifficultyScore",
         "BootstrapResult",
         "AuditResult",
+        "CardMeta",
         "DatasetManifest",
         "DatasetCard",
         "DatasetRelease",

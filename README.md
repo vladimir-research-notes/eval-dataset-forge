@@ -36,7 +36,7 @@ A benchmark dataset should not be a bare JSONL file — it should ship as a
 examples.jsonl          the data (schema-validated)
 manifest.json           version, hashes, splits, audit summary, license notes
 audit.json / audit.md   exact + near duplicates, leakage, label warnings, PII flags
-dataset_card.md         purpose, construction, known issues, limitations, non-goals
+dataset_card.md         generated from manifest + audit, so its "known issues" cannot drift
 splits/{train,dev,test} constructed with a documented, reproducible rationale
 REPRODUCE.md            exact commands to rebuild the release
 ```
@@ -75,12 +75,13 @@ evalforge check-env
 evalforge validate     --dataset datasets/fixtures/qa_toy/examples.jsonl
 evalforge audit        --dataset datasets/fixtures/qa_toy/examples.jsonl --out results/audits/qa_toy/
 evalforge build-splits --dataset datasets/fixtures/qa_toy/examples.jsonl --strategy stratified --out datasets/releases/qa_toy_v0.1/
-evalforge dataset-card --release datasets/releases/qa_toy_v0.1/ --out results/reports/qa_toy_dataset_card.md
+evalforge dataset-card --release datasets/releases/qa_toy_v0.1.0 --out results/reports/qa_toy_dataset_card.md
 evalforge smoke        --out results/reports/smoke_audit.md
 ```
 
-`check-env`, `version`, and `info` work today; the audit/build subcommands are
-declared and point at the milestone that implements them.
+Working today: `check-env`, `version`, `info`, `validate`, `build-splits`,
+`difficulty`, `stats`, `release`, `verify-release`, `dataset-card`. `audit` and
+`smoke` are declared and point at the milestone that implements them.
 
 ## Fixture datasets
 

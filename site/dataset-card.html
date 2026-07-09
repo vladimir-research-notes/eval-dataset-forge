@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>eval-dataset-forge — Example dataset card</title>
+  <title>eval-dataset-forge — Dataset card generator</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -30,56 +30,287 @@
   </nav>
 </header>
 <main>
-  <p><span class="status pending">generated in Milestone 11</span></p>
-  <h1>Example dataset card</h1>
-  <p class="lede">Every release ships a dataset card: what the data is for, how it
-  was built, what is known to be wrong with it, and what it must not be used for.
-  Below is the shape of a generated card (illustrative — the real one is produced
-  from an actual audit).</p>
+  <p><span class="status done">implemented in Milestone 11</span></p>
+  <h1>Dataset card generator</h1>
+  <p class="lede">A dataset card is the document a reader consults before trusting a benchmark.
+  The failure mode it exists to prevent is not absence — most datasets ship a README — it is
+  <em>drift</em>: a card written by hand in week one, describing a corpus that has been re-cut
+  four times since, with a "known issues" section listing the issues someone remembered.</p>
 
-<pre><code># Dataset card — qa_toy v0.1
+  <div class="callout"><strong>So the card is derived.</strong> <code>build_card</code> takes
+  exactly two inputs — a release's <code>manifest.json</code> and its <code>audit.json</code> —
+  and every count it prints is read from them. Nothing is recomputed. Re-running the dedup ladder
+  at render time would let a threshold move between the audit and the card, and the card would
+  then disagree with the <code>audit.json</code> sitting beside it in the same directory. A card
+  is a <em>view</em> of the evidence, and a view that recomputes its own source is not a view.</div>
 
-## Purpose
-Synthetic QA benchmark fixture used to exercise the audit pipeline.
+  <h2>1. Two things the card cannot print — by arithmetic, not taste</h2>
+  <p><code>dataset_card.md</code> is an artifact of the release, hashed into
+  <code>manifest.hashes</code> alongside <code>examples.jsonl</code> and the split files. Two
+  fields every dataset card in the wild carries therefore become <em>impossible</em>.</p>
 
-## Construction
-Hand-authored examples with deliberately planted defects (duplicates,
-paraphrases, mislabeled answers, ambiguous questions, train/test overlap).
+  <table>
+    <tr><th>absent field</th><th>why it cannot exist</th></tr>
+    <tr><td>the file-hash table</td>
+        <td>The digest of the card's bytes would have to appear <em>inside</em> the card's bytes.
+        That is a preimage requirement, not a design choice.</td></tr>
+    <tr><td><code>created_at</code></td>
+        <td>A clock inside a hashed artifact makes every rebuild differ from every other, which
+        collapses the <code>none</code> version bump — <em>"nothing changed but the clock"</em> —
+        that <a href="releases.html">Milestone 10</a> defined.</td></tr>
+  </table>
 
-## Schema
-DatasetExample (see docs/DATASET_SCHEMA.md). SCHEMA_VERSION 0.1.0.
+  <p>What the card prints instead are <code>content_id</code> and <code>eval_id</code>, which are
+  functions of the <em>examples</em> rather than of the card, plus a pointer to
+  <code>verify-release</code> for byte integrity. Both absences are pinned by tests that mutate
+  every hash, and rebuild at two different clocks, and assert the card does not move.</p>
 
-## Splits
-train N · dev N · test N — strategy: adversarial (near-dup aware), seed 7.
+  <div class="callout warn"><strong>This forces an order on the release builder.</strong> The card
+  is rendered <em>from</em> a manifest, and its digest belongs <em>in</em> that manifest. So the
+  builder assembles the manifest twice: once over <code>{examples, splits, audit.json,
+  REPRODUCE.md}</code> so the card has something to render from, then again with the card's bytes
+  in the artifact set. The two differ in <code>hashes</code> and nothing else — precisely the field
+  <code>build_card</code> refuses to read. Were that not true, the shipped card would describe a
+  manifest that was thrown away.</div>
 
-## Known issues (from the audit)
-- exact duplicates: k
-- near-duplicates: k (Jaccard ≥ 0.8)
-- leakage flags: k (answer-in-prompt, train/test overlap)
-- label warnings: k (conflicting, ambiguous)
-- PII flags: 0
+  <pre><code>two builds of qa_toy, created_at 2020-01-01 vs 2031-12-31, everything else fixed
+  same    REPRODUCE.md        same    dataset_card.md     same    examples.jsonl
+  same    audit.json          same    splits/{train,dev,test}.jsonl
+  DIFFER  manifest.json</code></pre>
 
-## Difficulty distribution
-easy N · medium N · hard N
+  <h2>2. The headline number is two numbers</h2>
+  <p>Milestone 10 left this open: <em>"a card that says '14 examples' when the corpus holds 11
+  independent blocks is not lying, but it is not helping."</em> The card prints both. A reader
+  spends the headline number as a sample size, and <strong>14 is not the sample size of
+  anything</strong>.</p>
 
-## Recommended use
-Testing dataset-audit tooling. NOT a measure of real QA capability.
+  <p>And it goes one step further, because neither number bounds the claim a reader usually wants
+  to make. A confidence interval on a <strong>test</strong> score is governed by the number of
+  independent blocks <em>in the test split</em>. So <code>manifest.dependence</code> gained
+  <code>blocks_by_split</code> and <code>straddling_block_count</code>:</p>
 
-## Non-goals
-Not a certification of quality. Not medical/legal/security guidance.
+  <table>
+    <tr><th>split</th><th>examples</th><th>independent blocks</th><th>share</th></tr>
+    <tr><td><code>dev</code></td><td>1</td><td>1</td><td>7.1%</td></tr>
+    <tr><td><code>test</code></td><td>2</td><td><strong>2</strong></td><td>14.3%</td></tr>
+    <tr><td><code>train</code></td><td>11</td><td>8</td><td>78.6%</td></tr>
+  </table>
+
+  <p>A block straddling a split boundary is counted in every split it reaches, so the per-split
+  counts sum to at least <code>block_count</code>, and <code>straddling_block_count</code> says by
+  how much. Under the <a href="splits.html">adversarial</a> strategy it is zero. Under
+  <code>random</code> it is not — and it is the same defect <code>residual_overlap</code> reports,
+  counted differently.</p>
+
+  <h2>3. Zeros go in the table, never in the bullets</h2>
+  <p>The findings table lists every audit dimension, including the ones that fired zero times, with
+  a <strong>certainty</strong> column. A zero on a heuristic row says the check found nothing — not
+  that there is nothing to find. And a zero must be visible at all: a card listing only what was
+  found is indistinguishable from a card whose pipeline never ran that check.</p>
+
+  <table>
+    <tr><th>dimension</th><th>count</th><th>certainty</th></tr>
+    <tr><td>duplicates: exact</td><td>1</td><td>exact</td></tr>
+    <tr><td>duplicates: near</td><td>1</td><td>heuristic (tfidf)</td></tr>
+    <tr><td>leakage: answer in prompt</td><td>1</td><td>heuristic</td></tr>
+    <tr><td>leakage: n-gram overlap</td><td>0</td><td>exact given the n-gram width</td></tr>
+    <tr><td>labels: needs adjudication</td><td>4</td><td>derived from the rows above</td></tr>
+    <tr><td>PII-like patterns</td><td>0</td><td>heuristic (pattern match)</td></tr>
+  </table>
+
+  <p>The "Known issues" bullets carry only the non-zero findings, with example ids. A bullet reading
+  <em>"0 duplicates"</em> is a reassurance; a table row reading <code>0</code> is a statement about
+  what was checked. When every dimension is zero, the card says so <em>without</em> claiming the
+  data is clean.</p>
+
+  <h2>4. Curator prose: absent, never invented</h2>
+  <p>Four sections cannot be computed from any audit, because they are claims about intent:
+  <code>purpose</code>, <code>construction</code>, <code>recommended_use</code>,
+  <code>non_goals</code>. They are supplied in a YAML file, validated (unknown fields rejected — a
+  <code>non_goal:</code> typo raises rather than silently dropping the curator's non-goals), and
+  recorded in <code>manifest.card_meta</code> — <em>not</em> read from a side file at render time,
+  because a card whose text lived outside the release could not be checked against the release.</p>
+
+  <p>A section the curator left blank is <strong>named</strong> in the rendered card, never quietly
+  omitted: a reader must be able to tell <em>"no restrictions"</em> from <em>"nobody wrote any
+  down"</em>. <code>dataset-card --fail-on-incomplete</code> lets CI insist on the difference.</p>
+
+  <p>Rewriting a non-goal changes no number and cannot move a score, so prose is
+  <strong>packaging</strong>:</p>
+
+  <pre><code>delta: 0.1.0 → 0.1.1 (patch bump; scores still comparable)
+  content_id : same
+  eval_id    : same
+  - packaging only: hashes, card_meta</code></pre>
+
+  <h2>5. <code>--check</code> and <code>verify-release</code> answer different questions</h2>
+  <table>
+    <tr><th>command</th><th>question</th><th>depends on</th></tr>
+    <tr><td><code>verify-release</code></td><td>Are the bytes on disk the bytes the manifest
+        describes?</td><td>the release directory alone</td></tr>
+    <tr><td><code>dataset-card --check</code></td><td>Does <em>this</em> tool version still render
+        the card that shipped?</td><td>the release <strong>and</strong> the renderer</td></tr>
+  </table>
+
+  <p><code>verify-release</code> already covers the card's integrity — it is in
+  <code>manifest.hashes</code>, so a corrupted card fails <code>hashes_match</code> like any other
+  artifact. Folding the render check into it would make an old, perfectly intact release fail
+  verification on the day the card's wording improved, turning a byte-integrity check that any
+  reader can run into a claim about <em>this repository's</em> renderer. A test constructs exactly
+  that case: a card edited <em>and</em> its hash updated. <code>verify-release</code> passes;
+  <code>--check</code> fails and says the renderer changed, not that the release is corrupt.</p>
+
+  <h2>6. One document, two backends</h2>
+  <p>Markdown and HTML are not two templates. A report is built once as a <code>Document</code> — a
+  flat list of headings, paragraphs, bullets, tables, notes, and code blocks — and rendered twice.
+  Two templates are two places a number is written down, and the second one is where it goes stale.
+  A test walks the document and asserts every string it carries reaches <em>both</em> outputs; no
+  template pair can offer that.</p>
+
+  <p>The inline vocabulary is one item long: a <strong>code span</strong>. Bold, links, and nested
+  emphasis would need a Markdown parser in each backend, and the dependency budget has no room for
+  one. The cost is that a card cannot link out.</p>
+
+  <div class="callout warn"><strong>Escaping is a correctness property.</strong> The card
+  interpolates untrusted text: <code>license_notes</code>, curator prose, and example ids from a
+  JSONL file someone else wrote.
+  <ul>
+    <li>Markdown escapes <code>\ ` | * &lt; [</code> uniformly, in every literal span rather than
+      only inside table cells. A contextual escaper has to know which block it is in, and the one
+      time it guesses wrong is on a dataset whose <code>license_notes</code> contains a
+      <code>|</code> — at which point the card's table silently grows a column.</li>
+    <li><code>&lt;</code> and <code>[</code> are escaped because CommonMark passes raw HTML through,
+      and <code>[text](url)</code> would become a live link the curator never wrote.</li>
+    <li>Intraword <code>_</code> is <em>not</em> escaped: CommonMark already forbids it from opening
+      emphasis, and a backslash in <code>qa_toy</code> would land in the most-read line of every
+      card. <code>_emphasis_</code> at a word boundary still is.</li>
+    <li>A line-initial <code>1.</code> escapes the <em>dot</em>, not the digit — <code>\1.</code>
+      renders as a literal backslash and still opens an ordered list, because CommonMark only
+      recognizes an escape before ASCII punctuation. This was a real bug, caught by a test.</li>
+    <li>HTML escapes every literal span, and <code>&lt;title&gt;</code> gets a <em>plain</em>
+      rendering: a <code>&lt;code&gt;</code> element inside <code>&lt;title&gt;</code> is not markup,
+      it is six literal characters in the browser tab.</li>
+  </ul>
+  The generated HTML page is standalone: one file, inline stylesheet, no scripts, no fonts, no
+  network. A dataset card should not require a server, and it should not be able to phone one.</div>
+
+  <h2>Commands</h2>
+  <pre><code>PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
+  --release datasets/releases/qa_toy_v0.1.0 \
+  --out results/reports/qa_toy_dataset_card.md \
+  --html results/reports/qa_toy_dataset_card.html
+
+# Does this tool version still render the card the release shipped? (exit 1 on drift)
+PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
+  --release datasets/releases/qa_toy_v0.1.0 --check
+
+# Did the curator leave a section unwritten? (exit 1 if so)
+PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
+  --release datasets/releases/qa_toy_v0.1.0 --fail-on-incomplete</code></pre>
+
+  <h2>An excerpt from the real generated card</h2>
+  <p>Committed at
+  <code>datasets/releases/qa_toy_v0.1.0/dataset_card.md</code> — generated, not written.</p>
+
+<pre><code># Dataset card — qa_toy v0.1.0
+
+Generated from this release's `manifest.json` and `audit.json`. Every count below is
+read from the audit that shipped with the data, never recomputed, so the card and the
+evidence beside it cannot disagree. Prose sections are supplied by the curator and are
+the only unverified claims here.
+
+| field | value |
+|---|---|
+| dataset | `qa_toy` |
+| version | `0.1.0` |
+| size | 14 examples in 11 independent blocks |
+| splits | dev 1 · test 2 · train 11 |
+| split strategy | `adversarial` (seed 0) |
+| `content_id` | `sha256:a271768e2254cd69…` |
+| `eval_id` | `sha256:a1fb253b7597a336…` |
+
+&gt; This release holds 14 examples but only 11 independent blocks: 3 example(s) are
+&gt; duplicates or share a source record with another. Sample size for an interval or a
+&gt; significance test is the block count, not the example count.
+
+...
+
+## Known issues
+
+- 1 exact duplicate cluster(s) — identical input and gold answer: `qa-001 + qa-002`.
+- 1 near-duplicate cluster(s) above the tfidf threshold: `qa-003 + qa-004 + qa-012`.
+  Heuristic — a paraphrase below the threshold is not here.
+- 1 answer-in-prompt finding(s) covering 1 example(s): `qa-007`.
+- 4 example(s) are quarantined in `train` because their gold answer is missing,
+  conflicting, or unadjudicated. They are not deleted.
+
+## Where these numbers came from
+
+Generated facts are read from `manifest.json` and `audit.json`; prose is the curator's,
+recorded in `manifest.card_meta`. 4 of 4 curator sections are supplied.
+
+- This card prints no file hashes. It is itself hashed into `manifest.hashes`, so a
+  digest of its own bytes cannot appear inside them.
+- This card prints no build timestamp. A clock inside a hashed artifact would make each
+  rebuild differ from the last, and a rebuild that changes nothing must be able to say so.
 </code></pre>
 
-  <div class="callout">The card is generated from the <code>AuditResult</code> and
-  <code>DatasetManifest</code>, so its "known issues" section is always consistent
-  with what the pipeline actually found — no hand-maintained claims.</div>
+  <div class="callout warn"><strong>Honest negatives.</strong>
+  <ul>
+    <li><strong>The card is a rendering of evidence, not evidence.</strong>
+      <code>audit.json</code> is what a tool should read; the card is what a person should read.
+      When they disagree, the card is wrong by construction, and <code>--check</code> says so.</li>
+    <li><strong>Its counts inherit every upstream bound.</strong> A heuristic row is a lower bound.
+      <code>ret-001</code>/<code>ret-002</code> is invisible to the audit, so it is invisible here.</li>
+    <li><strong>Four sections are unverified claims.</strong> Nothing checks whether the curator's
+      prose is <em>true</em>. A release whose curator wrote "suitable for clinical use" would render
+      that sentence faithfully.</li>
+    <li><strong>It cannot conditionally warn about the difficulty buckets.</strong>
+      <code>AuditResult</code> records the difficulty <em>distribution</em> but not the calibration
+      verdict, so the card carries an unconditional note. The verdict does reach the reader — through
+      <code>known_limitations</code> and <code>recommendations</code>, printed verbatim — but two
+      sections away from the table it qualifies.</li>
+    <li><strong>HTML is not part of the release bundle.</strong> A second rendering of the same facts
+      inside a hashed bundle doubles the surface that can go stale and adds no information.</li>
+  </ul></div>
 
   <h3>Relevant files</h3>
-  <ul class="files">
-    <li>src/eval_dataset_forge/reports/{dataset_card,markdown,html}.py</li>
+  <ul>
+    <li><code>src/eval_dataset_forge/reports/document.py</code> — syntax-free document model, inline spans</li>
+    <li><code>src/eval_dataset_forge/reports/markdown.py</code> — CommonMark backend + escaping</li>
+    <li><code>src/eval_dataset_forge/reports/html.py</code> — standalone-page backend + escaping</li>
+    <li><code>src/eval_dataset_forge/reports/dataset_card.py</code> — <code>build_card()</code>, layout, <code>--check</code></li>
+    <li><code>datasets/fixtures/qa_toy/card.yaml</code> — the demo release's curator prose</li>
+    <li><code>datasets/releases/qa_toy_v0.1.0/dataset_card.md</code> — a real generated card</li>
+    <li><code>tests/test_reports.py</code> — 64 tests</li>
+    <li><code>docs/DATASET_CARD.md</code></li>
   </ul>
+
   <h3>Status</h3>
-  <p>Card generator lands in Milestone 11 (<code>dataset-card</code> CLI); a real
-  generated card is committed with the demo release.</p>
+  <p>Implemented in Milestone 11. <strong>1659 tests pass</strong> (1595 prior + 64 reports). The
+  committed demo release ships a generated card that regenerates byte-for-byte from its own
+  <code>manifest.json</code> + <code>audit.json</code>; two builds at different clocks differ in
+  <code>manifest.json</code> and nothing else. <code>audit.md</code> is still missing from the
+  bundle, and every <code>REPRODUCE.md</code> says so and names the milestone that lands it (12).</p>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>Should <code>AuditResult</code> record the difficulty calibration <em>verdict</em>, not just
+      the distribution? It would let the card's note become a conditional warning. It would also be a
+      schema change made for a rendering convenience.</li>
+    <li>Should the card quote the <code>examples.jsonl</code> digest? It is non-circular (only the
+      card's <em>own</em> digest is impossible) and would let a reader with just the card verify the
+      data. It would also re-introduce a file hash into a document whose thesis is that file hashes
+      answer the wrong question.</li>
+    <li>Is <code>--fail-on-incomplete</code> the right gate? It measures whether four fields are
+      non-empty, which a curator can satisfy with the word "TBD".</li>
+    <li>The card cannot link out, because the inline vocabulary has no link node. A card that could
+      link to <code>DEDUPLICATION.md</code> would be more useful — and would need a URL policy for a
+      file that may be read from a release directory, a repository, or a web page.</li>
+    <li>Should a release ship <code>dataset_card.json</code> (the <code>DatasetCard</code> model) so a
+      tool can read the card without parsing Markdown? Today <code>audit.json</code> plus
+      <code>manifest.json</code> already carry every fact, and the card adds only arrangement.</li>
+  </ul>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>
