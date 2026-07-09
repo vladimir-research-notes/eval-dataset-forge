@@ -232,8 +232,8 @@ byte-perfect must not fail verification on the day the card's wording improved. 
 
 ## An "optional accelerator" changes the answer, not the speed
 
-`docs/PLAN.md` §3 lists `scikit-learn` as an optional accelerator with a pure-Python fallback.
-That framing is wrong, and Milestone 13 measured how wrong. `resolve_near_method("auto")`
+`docs/PLAN.md` §3 used to list `scikit-learn` as an optional accelerator with a pure-Python
+fallback. That framing is wrong, and Milestone 13 measured how wrong. `resolve_near_method("auto")`
 returns `tfidf` iff scikit-learn is importable and `jaccard` otherwise; the two disagree about
 which examples are duplicates; duplicates become blocks; the adversarial split will not cut
 through a block; and `eval_id` folds the split in.
@@ -285,6 +285,39 @@ returns `undecidable` on every release this tool has ever built. It is in no pro
 exists so that the gap is executable rather than a sentence in a document — the card pays for it
 with an unconditional caveat, and every consumer pays for it with a verdict it cannot obtain.
 See [`INTEGRATION.md`](INTEGRATION.md).
+
+## Prose has no way to fail, so it rots
+
+The section above this one exists because Milestone 13 corrected a sentence it had measured false.
+It corrected it in `REPRODUCE.md`, which is generated and pinned by a test. The identical false
+sentence sat untouched in `README.md`, `docs/METHODOLOGY.md`, and `docs/PLAN.md` — three files no
+test had ever read. **A generated artifact is enforced; prose is not.**
+
+Milestone 14 added `scripts/verify_docs.py`, which audits the documentation the way the rest of the
+tool audits a dataset. What it can check, it checks: links resolve, every documented `evalforge`
+command names a real subcommand and real options against the live parser, every cited test count is
+what `pytest` collects, every cited example id exists in a fixture, no live document *asserts* a
+retired claim, and every number in [`CLAIMS.md`](CLAIMS.md) is reproduced by the command the ledger
+says produces it.
+
+What it cannot check bounds it, and the bounds are not small:
+
+- **It does not check that the code is correct.** It proves the documentation agrees with the code.
+  A number can be wrong in both places and pass every check.
+- **Retired claims are matched as phrasings, not propositions.** A paraphrase evades the pattern.
+  Recall over "false sentences in this repository" is unmeasurable: unlike the fixtures, whose
+  defects are planted and enumerated in `defects.yaml`, no ground-truth list of false sentences
+  exists. What pins the *fact* behind a retired claim is a behavioural test; the lint only stops the
+  retired phrasing from being retyped.
+- **A phrasing lint cannot separate a claim from its correction.** Measured: the candidate rule
+  `sklearn_is_an_accelerator` flags this document and `RESULTS.md`, both of which quote the claim to
+  refute it, and never flagged `docs/PLAN.md` §3, which asserted it. Precision 0/2, recall 0/1. It is
+  registered, enforced nowhere, and a test asserts nothing picks it up. `PLAN.md` §3 and the
+  `pyproject.toml` comment were fixed by reading them.
+- **Most prose states no number and quotes no retired claim, and is therefore unchecked.** This is a
+  lint over the checkable surface, not a proof of honesty.
+- **The website is not audited at all.** `site/*.html` restates these claims and nothing verifies the
+  restatement.
 
 ## Non-goals
 

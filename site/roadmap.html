@@ -24,6 +24,7 @@
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="integration.html">Integration</a>
+    <a href="claims.html">Claims</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html" class="active">Roadmap</a>
@@ -50,6 +51,17 @@
   difficulty-calibration verdict it currently computes and discards; whether the near-duplicate
   default should trade TF-IDF's accuracy for Jaccard's composability; and whether any of the five
   named projects would recognize the contract written on its behalf.</p>
+
+  <h2>Audited documentation <span class="status done">landed in Milestone 14</span></h2>
+  <p>Every claim this project publishes is now either recomputed from the code by
+  <code>scripts/verify_docs.py</code>, or is a dated record in a milestone note. Full method and
+  failure modes: <a href="claims.html">Claims</a>.</p>
+  <p>Open: the near-duplicate detector is still selected by <code>auto</code> resolution inside
+  <code>evalforge release</code>, so <code>--near-method</code> pins an <em>audit</em> but not yet a
+  <em>release</em> — closing that touches <code>eval_id</code>'s inputs and is a release-identity
+  question rather than a documentation one. Also open: this website duplicates the docs' claims in
+  HTML and nothing checks that they agree; and the retired-claim ledger holds one enforced rule,
+  because the second candidate was measured at precision 0/2 and shipped disabled.</p>
 
   <h2>Research directions (docs/PAPER_PATH.md)</h2>
   <ul>

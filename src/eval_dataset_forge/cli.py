@@ -503,6 +503,7 @@ def cmd_audit(args: argparse.Namespace) -> int:
             args.dataset,
             dataset_id=args.dataset_id or "",
             version=args.audit_version,
+            near_method=args.near_method,
             near_require_same_answer=not args.ignore_answer_gate,
             difficulty_resamples=args.resamples,
             seed=args.seed,
@@ -614,6 +615,15 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="VERSION",
         help="version string recorded in audit.json. Defaults to 'unversioned': a file on disk "
         "makes no claim about score comparability, and a release version would manufacture one",
+    )
+    p_audit.add_argument(
+        "--near-method",
+        choices=("auto", "tfidf", "jaccard"),
+        default="auto",
+        help="near-duplicate detector. 'auto' (default) picks tfidf when scikit-learn is "
+        "importable and jaccard otherwise, which lets the installed packages decide what the "
+        "audit reports; naming one pins it, so a published number can be reproduced without "
+        "reproducing the environment",
     )
     p_audit.add_argument(
         "--html",

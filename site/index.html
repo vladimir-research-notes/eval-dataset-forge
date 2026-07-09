@@ -24,6 +24,7 @@
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="integration.html">Integration</a>
+    <a href="claims.html">Claims</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html">Roadmap</a>
@@ -31,7 +32,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status scaffold">Milestone 13 — integration contracts</span></p>
+  <p><span class="status scaffold">Milestone 14 — final portfolio report</span></p>
   <h1>Make evaluation datasets trustworthy</h1>
   <p class="lede">A benchmark that reports one accuracy number hides most of what
   decides whether that number means anything. eval-dataset-forge turns
@@ -122,9 +123,17 @@
   issues" cannot drift; because the card is itself a hashed artifact of the release, it can print
   neither a file-hash table nor a build timestamp, and it reports the corpus as
   <em>14 examples in 11 independent blocks</em> rather than letting a reader spend 14 as a sample
-  size. The remaining audit subsystems follow milestone by milestone — see
-  <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
-  contract.</p>
+  size. Milestone 12 ran the whole pipeline over every fixture and <em>scored the scorer</em>: a
+  detector that flags everything earns recall <strong>1.000</strong> under the identical rule, so
+  every recall here is printed beside a precision and the degenerate control ships inside the report.
+  Milestone 13 wrote executable <a href="integration.html">integration contracts</a> for five
+  downstream consumers, all of which reject the deliberately flawed demo release — and found that the
+  "optional accelerator" <code>scikit-learn</code> is a <em>different detector</em>, so the build
+  environment is an input. Milestone 14 turned that discovery on the repository itself: the corrected
+  sentence had been fixed only in the one file a test could read, so the documentation is now
+  <a href="claims.html">audited by the repository</a>, with every published number bound to the command
+  that produces it. See <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code>
+  build contract.</p>
 
   <div class="callout">This is a benchmark-quality instrument, not a certifier of
   universal benchmark quality and not a medical, legal, or security authority.

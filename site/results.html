@@ -24,6 +24,7 @@
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="integration.html">Integration</a>
+    <a href="claims.html">Claims</a>
     <a href="results.html" class="active">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html">Roadmap</a>
@@ -452,6 +453,39 @@
         <td>3 findings; <code>no_retrieval_contamination</code> undecidable</td></tr>
   </table>
 
+  <h2>Auditing the documentation <span class="status done">M14</span></h2>
+  <p>Every stage above audits a dataset. This one audits the prose, and Milestone 13 supplied the
+  reason by accident: it measured that the build environment is an input, corrected the sentence that
+  said otherwise in the one file that was generated and test-pinned, and left the identical false
+  sentence in <code>README.md</code>, <code>docs/METHODOLOGY.md</code> and <code>docs/PLAN.md</code>.
+  <strong>A generated artifact is enforced; prose is not.</strong> Full method:
+  <a href="claims.html">Claims</a>.</p>
+
+  <p><strong>A number is not a claim until it names the command that produced it.</strong> Same
+  fixture, same seed, same statistic (ρ = −0.080), two published p-values — and both are correct:</p>
+  <table>
+    <tr><th>command</th><th><code>--resamples</code> default</th><th>permutation p</th></tr>
+    <tr><td><code>evalforge difficulty</code></td><td>10000</td><td><strong>0.789</strong></td></tr>
+    <tr><td><code>evalforge audit</code></td><td>2000</td><td><strong>0.777</strong></td></tr>
+  </table>
+  <p>The gap is the permutation test's Monte-Carlo error. So each of the 11 registered claims carries
+  the command that produces it, and that column is itself checked. It caught a claim citing
+  <code>evalforge audit --near-method jaccard</code> — a flag nobody had built — which is how this
+  milestone found that the Jaccard figures published since Milestone 4 could only be reproduced by
+  <strong>uninstalling scikit-learn</strong>. The flag now exists.</p>
+
+  <p><strong>A phrasing lint cannot separate a claim from its correction.</strong> The candidate rule
+  <code>sklearn_is_an_accelerator</code>, run over the live docs as this milestone found them, flagged
+  <code>LIMITATIONS.md</code> and <code>RESULTS.md</code> — which quote the claim in order to refute it —
+  and missed <code>PLAN.md</code> §3, which asserted it. Precision 0/2, recall 0/1. It ships registered
+  and disabled, the treatment Milestone 13 gave <code>difficulty_is_calibrated</code>.</p>
+
+  <div class="callout">A checker reporting zero violations is indistinguishable, on that number alone,
+  from a checker that looks at nothing — the mirror image of the flag-everything control above. So
+  <code>tests/test_docs.py</code> plants a defect for every check and asserts the check fires. Both
+  false positives the auditor ever produced were <em>use/mention</em> errors, and both are pinned by
+  tests.</div>
+
   <h2>Reproduce</h2>
 <pre><code>python3 -m pytest -q tests/test_dedup.py      # 99 tests
 python3 -m pytest -q tests/test_leakage.py    # 111 tests
@@ -461,7 +495,10 @@ python3 -m pytest -q tests/test_difficulty.py # 163 tests
 python3 -m pytest -q tests/test_statistics.py # 115 tests
 python3 -m pytest -q tests/test_release.py    # 72 tests
 python3 -m pytest -q tests/test_reports.py    # 64 tests
-python3 -m pytest -q tests/test_audit.py      # 47 tests
+python3 -m pytest -q tests/test_audit.py      # 49 tests
+python3 -m pytest -q tests/test_docs.py       # 70 tests
+
+python3 scripts/verify_docs.py               # the docs match the code; exit 1 if not
 
 python3 scripts/split_identity_experiment.py --seeds 400   # the table above
 

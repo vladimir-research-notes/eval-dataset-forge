@@ -36,8 +36,14 @@ rather than an assumption.
 - **Findings, not verdicts.** The tool emits findings and recommendations. It
   does not silently mutate a dataset or certify it as "clean." A human decides
   what to fix.
-- **Determinism.** Given a fixed input and seed, the pipeline is reproducible.
-  Randomized steps (split construction, bootstrap) take an explicit seed.
+- **Determinism.** Randomized steps (split construction, bootstrap) take an
+  explicit seed. Fixing the input and the seed is *not* sufficient: the build
+  environment is an input too, because near-duplicate detection resolves to
+  TF-IDF when scikit-learn is importable and to Jaccard when it is not, and the
+  two disagree about which examples are duplicates. Milestone 13 measured a
+  different `eval_id` and a different held-out set from identical bytes,
+  identical command, identical seed. Every release records the method that ran;
+  see [`REPRODUCIBILITY.md`](REPRODUCIBILITY.md).
 - **Offline and CPU-only.** No step requires a network or a GPU. Deterministic
   mock adapters stand in for any model call in tests.
 

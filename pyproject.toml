@@ -44,8 +44,11 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Optional accelerators. The core audit degrades gracefully to pure-Python
-# implementations when these are absent (documented in docs/DEDUPLICATION.md).
+# Optional. The core audit runs without either. pandas is an accelerator; scikit-learn
+# is not — it selects TF-IDF near-duplicate detection instead of the pure-Python Jaccard
+# path, and the two disagree about which examples are duplicates, so installing it changes
+# a release's eval_id and its held-out set. Measured in docs/LIMITATIONS.md; every release
+# records the method that ran in `dependence.near_method`.
 full = [
   "pandas>=2.0",
   "scikit-learn>=1.3",

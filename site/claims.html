@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Claims — eval-dataset-forge</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="validation.html">Validation</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="releases.html">Releases</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="integration.html">Integration</a>
+    <a href="claims.html" class="active">Claims</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status done">implemented in Milestone 14</span></p>
+  <h1>Auditing the documentation</h1>
+  <p class="lede">Every other stage of this project audits a dataset. This one audits the prose,
+  and Milestone 13 supplied the reason by accident. A generated artifact is enforced by a test.
+  Prose is not. A claim written in Markdown has no way to fail, so it does not fail, so it rots.</p>
+
+  <div class="callout warn"><strong>The headline.</strong> Milestone 13 measured that a release is
+  not reproducible from its inputs and seed alone — the build environment is an input — and
+  corrected the sentence that said otherwise in exactly one file: <code>REPRODUCE.md</code>, which
+  is <em>generated</em> and pinned by a test. The identical false sentence survived untouched in
+  <code>README.md</code>, <code>docs/METHODOLOGY.md</code>, and <code>docs/PLAN.md</code>: three
+  files no test had ever read.</div>
+
+  <h2>What the auditor checks</h2>
+  <p><code>python3 scripts/verify_docs.py</code> runs ten checks over the live documents and the
+  historical record: every relative Markdown link, every shell command in a fenced block, and 11
+  registered numeric claims. It prints its own coverage and exits 1 when any documented claim is
+  unsupported.</p>
+
+  <table>
+    <tr><th>check</th><th>reads</th><th>asserts</th></tr>
+    <tr><td><code>links</code></td><td>every doc</td><td>each relative Markdown link resolves</td></tr>
+    <tr><td><code>cli-commands</code></td><td>every doc</td><td>each <code>evalforge</code> command in a fenced block names a real subcommand and real options, checked against the live <code>argparse</code> parser</td></tr>
+    <tr><td><code>referenced-paths</code></td><td>every doc</td><td>each <code>scripts/*.py</code> and <code>tests/*.py</code> named in a command exists</td></tr>
+    <tr><td><code>test-counts</code></td><td>live docs</td><td>each <code># N tests</code> comment is the number pytest collects</td></tr>
+    <tr><td><code>example-ids</code></td><td>every doc</td><td>each cited <code>qa-006</code>-style id exists in a fixture</td></tr>
+    <tr><td><code>retired-claims</code></td><td>live docs</td><td>no document <em>asserts</em> a sentence a milestone measured false</td></tr>
+    <tr><td><code>ledger</code></td><td>live docs</td><td>every registered claim has a row, and the code reproduces its value</td></tr>
+    <tr><td><code>echoes</code></td><td>live docs</td><td>documents repeating a claim's value repeat the current one</td></tr>
+    <tr><td><code>claim-commands</code></td><td>the registry</td><td>each claim's "produced by" command exists</td></tr>
+    <tr><td><code>entry-point</code></td><td><code>pyproject.toml</code></td><td>the <code>evalforge</code> console script points at something callable</td></tr>
+  </table>
+
+  <h2>Live documents and historical records are different things</h2>
+  <p><code>README.md</code> and <code>docs/*.md</code> state what is true now. <code>docs/milestones/*.md</code>
+  and <code>docs/review_notes/*.md</code> state what was true at a commit —
+  <code>docs/milestones/12-smoke-audit.md</code> records <code># 1706 tests</code> and is right about
+  the commit it describes. Checking counts against history would force rewriting the record to match
+  the present, which is the one thing a record must never do. So counts and retired claims are checked
+  against live docs only; links, commands, and referenced paths must work wherever they appear.</p>
+
+  <h2>Use is not mention</h2>
+  <p><a href="limitations.html">Limitations</a> contains the retired sentence on purpose, in order to
+  say it is false. A lint that cannot tell an assertion from a quotation would either flag the
+  correction or need an allowlist naming every file permitted to discuss the topic. The rule is the
+  one English uses: a retired claim inside double quotes is <strong>mentioned</strong>; anywhere else
+  it is <strong>asserted</strong>.</p>
+
+  <p>Two refinements were forced by real false positives, each found by <em>running</em> the checker
+  rather than reasoning about it:</p>
+  <ul>
+    <li>The unit is the <strong>paragraph</strong>, not the line. <code>docs/RESULTS.md</code> opens
+      its quotation on one line and closes it on the next, and the first draft — which counted quotes
+      per line — flagged the continuation as an assertion. It produced its only false positive on the
+      document most careful to disown the claim.</li>
+    <li>Code spans are masked first. <code>docs/DATASET_CARD.md</code> contains a literal
+      <code>[text](url)</code> inside backticks, as an example of the Markdown the card generator must
+      escape. The link checker chased it to a file named <code>url</code>. That is the same use/mention
+      error one level down, for links rather than sentences.</li>
+  </ul>
+  <p>The <code>cited_in</code> escape hatch — files allowed to assert a retired claim anyway — is
+  <strong>empty</strong>, and an allowlist that stays empty is one nobody can quietly grow.</p>
+
+  <h2>A number is not a claim until it names the command that produced it</h2>
+  <p><code>docs/RESULTS.md</code> reports the <code>qa_toy</code> difficulty calibration p-value as
+  <strong>0.789</strong>. Running <code>evalforge audit</code> on the same fixture, at the same seed,
+  prints <strong>0.777</strong>.</p>
+
+  <table>
+    <tr><th>command</th><th><code>--resamples</code> default</th><th>permutation p</th></tr>
+    <tr><td><code>evalforge difficulty</code></td><td>10000</td><td><strong>0.789</strong></td></tr>
+    <tr><td><code>evalforge audit</code></td><td>2000</td><td><strong>0.777</strong></td></tr>
+  </table>
+
+  <p>Same fixture, same seed, same statistic (ρ = −0.080 in both). Neither number is wrong; the gap is
+  the permutation test's Monte-Carlo error, which shrinks like <code>1/√B</code>. A reader comparing
+  the two documents has no way to discover why they differ. So every claim carries the command that
+  produces it, and <code>check_claim_commands</code> verifies that column names a command that exists.</p>
+
+  <div class="callout"><strong>That check earned its keep immediately.</strong> The first draft of
+  <code>pooled_blocks_jaccard</code> cited <code>evalforge audit --near-method jaccard</code> — a flag
+  nobody had built. <code>docs/RESULTS.md</code> and <a href="deduplication.html">Deduplication</a> have
+  published Jaccard recall and block counts since Milestone 4, and the only way to reproduce them was to
+  <strong>uninstall scikit-learn</strong>. Milestone 14 added <code>--near-method {auto,tfidf,jaccard}</code>,
+  so a published number can be reproduced without reproducing the environment that produced it.</div>
+
+  <h2>One rule, registered and not enforced</h2>
+  <p><code>sklearn_is_an_accelerator</code> is a true proposition to retire: <code>docs/PLAN.md</code> §3
+  called scikit-learn an <em>optional accelerator with a pure-Python fallback</em>, and Milestone 13
+  showed it is a different detector. The rule ships in <code>CANDIDATE_RETIRED_CLAIMS</code>, enforced
+  nowhere, with a test asserting nothing picks it up — the precedent being Milestone 13's
+  <code>difficulty_is_calibrated</code>, registered and in no profile.</p>
+
+  <p>The reason is measured. Run against the live documents as Milestone 14 found them:</p>
+  <table>
+    <tr><th></th><th>count</th><th>which</th></tr>
+    <tr><td>documents flagged</td><td>2</td><td><code>LIMITATIONS.md</code>, <code>RESULTS.md</code></td></tr>
+    <tr><td>flagged documents that <strong>assert</strong> it</td><td>0</td><td>both quote it in order to refute it</td></tr>
+    <tr><td>documents that <strong>do</strong> assert it</td><td>1</td><td><code>PLAN.md</code> §3</td></tr>
+    <tr><td>of those, flagged</td><td>0</td><td>the phrase spans a line break the pattern cannot cross</td></tr>
+  </table>
+
+  <p>Precision 0/2, recall 0/1. The rule flags exactly the two documents that disown the claim and
+  misses the one that makes it, because a correction must use the same words as the error.
+  <code>PLAN.md</code> §3 and the <code>pyproject.toml</code> comment were fixed by <strong>reading
+  them</strong>. Run against the corrected documents the rule flags three, and the third is this very
+  page's source, <code>docs/CLAIMS.md</code> — the document that exists to explain why the rule is
+  disabled.</p>
+
+  <h2>The auditor is a defect detector, and it is scored like one</h2>
+  <p>A checker reporting zero violations is indistinguishable, on that number alone, from a checker that
+  looks at nothing — the mirror image of the flag-everything control in <a href="results.html">Results</a>.
+  So <code>tests/test_docs.py</code> plants a defect for every check and asserts the check fires: a broken
+  link, an invented subcommand, a renamed flag, a stale count, a fixture id no fixture holds, a retired
+  claim retyped, a ledger row the code does not reproduce, a drifted README, a claim citing a command that
+  does not exist, an orphaned entry point.</p>
+
+  <h2>Implementation</h2>
+  <ul>
+    <li><code>src/eval_dataset_forge/docs_audit.py</code> — the ten checks, the claim registry, the
+      retired-claim ledger, and <code>observe_numbers()</code>, which recomputes every claim from the code
+      and the committed artifacts and reads no document.</li>
+    <li><code>scripts/verify_docs.py</code> — the runner; exit 1 on any unsupported claim.</li>
+    <li><code>tests/test_docs.py</code> — 70 tests, of which the load-bearing ones are the controls.</li>
+    <li><code>docs/CLAIMS.md</code> — the ledger and the full argument.</li>
+  </ul>
+
+  <h2>Status</h2>
+  <p><span class="status done">landed</span> Ten checks, clean on this repository. 70 tests.
+  <code>python3 scripts/verify_docs.py</code> exits 0.</p>
+
+  <h2>Limitations &amp; open questions</h2>
+  <ul>
+    <li><strong>It does not check that the code is correct.</strong> The ledger proves the documentation
+      agrees with the code. That the code is right is what the rest of the test suite is for. A number can
+      be wrong in both places and pass every check here.</li>
+    <li><strong>Retired claims are matched as phrasings, not propositions.</strong> A paraphrase evades the
+      pattern. Recall over "false sentences in this repository" is not measurable, because unlike the
+      fixtures — whose defects are planted and enumerated — no ground-truth list of false sentences exists.</li>
+    <li><strong>Only fenced shell blocks are parsed.</strong> An <code>evalforge</code> invocation written
+      inline in prose is not checked.</li>
+    <li><strong><code>evalforge</code> is never executed.</strong> It exists on <code>PATH</code> only after
+      <code>pip install -e .</code>, which the offline suite does not do. The entry-point check verifies the
+      declared target imports and is callable; it does not prove the binary runs.</li>
+    <li><strong>This website is not audited.</strong> The checks read Markdown. These pages duplicate the
+      docs' claims in HTML, and nothing verifies that they agree — a gap raised for review rather than
+      quietly closed.</li>
+  </ul>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

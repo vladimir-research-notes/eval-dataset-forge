@@ -52,9 +52,14 @@ quality; it claims to surface specific, common, checkable defects.
   future paid-API mode must ship with a dry-run mode, a response cache, a
   token/cost estimator, and a hard max-cost guard, and stays disabled by default.
 - **Small, honest dependency set.** Hard deps: `pydantic` (schema validation),
-  `numpy` (bootstrap statistics), `pyyaml` (YAML formats). Optional accelerators:
-  `pandas`, `scikit-learn` (TF-IDF near-duplicate detection) — the core degrades
-  to pure-Python fallbacks when they are absent.
+  `numpy` (bootstrap statistics), `pyyaml` (YAML formats). Optional: `pandas`
+  (tabular reports) and `scikit-learn` (TF-IDF near-duplicate detection); the
+  core runs without either. `pandas` is an accelerator. **`scikit-learn` is not**
+  — it selects a *different* near-duplicate detector, and Milestone 13 measured
+  that its presence changes which examples are held out and changes `eval_id`.
+  This line originally called both "optional accelerators with a pure-Python
+  fallback"; that was wrong about one of them, and the correction is recorded
+  rather than quietly applied.
 - **Privacy-safe.** Only synthetic or public-safe fixtures. No real personal,
   clinical, or patient data. Redaction and PII-like detection utilities are part
   of the validation layer. Biomedical examples stay non-clinical and generic.
@@ -109,9 +114,11 @@ raw examples (JSONL/YAML fixtures)
      └─ REPRODUCE.md            (exact commands)
 ```
 
-The pipeline is deterministic given a fixed input and seed. Every stage is a
-separable module with its own tests, so a stage can be reasoned about (and
-verified) in isolation.
+The pipeline is deterministic given a fixed input, a fixed seed, **and a fixed
+environment** — Milestone 13 measured that the presence of `scikit-learn` changes
+which examples are duplicates, and therefore changes `eval_id` (§3, and
+[`REPRODUCIBILITY.md`](REPRODUCIBILITY.md)). Every stage is a separable module
+with its own tests, so a stage can be reasoned about (and verified) in isolation.
 
 ### Package layout
 

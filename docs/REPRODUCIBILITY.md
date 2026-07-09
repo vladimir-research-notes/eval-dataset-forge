@@ -37,6 +37,18 @@ python3 -m pytest -q
 The `src/` layout plus `conftest.py` puts the package on `sys.path`, so tests run
 without an editable install.
 
+## Check that this document is telling the truth
+
+```bash
+python3 scripts/verify_docs.py     # exit 1 if any documented claim is unsupported
+```
+
+Every relative link, every `evalforge` command in a fenced block, every cited test count,
+every cited fixture example id, and every number registered in [`CLAIMS.md`](CLAIMS.md) is
+checked against the code and the committed artifacts. Milestone 14 added it after finding that
+Milestone 13's correction to this file's determinism claim had never reached the README. What it
+cannot check is listed in [`CLAIMS.md`](CLAIMS.md).
+
 ## Reproduce the audit pipeline (once milestones land)
 
 ```bash

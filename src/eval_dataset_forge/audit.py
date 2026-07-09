@@ -437,6 +437,7 @@ def run_audit(
     *,
     dataset_id: str,
     version: str = UNVERSIONED,
+    near_method: str = "auto",
     near_require_same_answer: bool = True,
     difficulty_resamples: int = DEFAULT_DIFFICULTY_RESAMPLES,
     seed: int = 0,
@@ -447,15 +448,28 @@ def run_audit(
     Deterministic, offline, and non-mutating: the examples are audited exactly as handed over,
     including whatever ``split`` they carry. The deduplication ladder runs once and is threaded
     into the leakage checks, which would otherwise recompute it.
+
+    ``near_method`` defaults to ``"auto"``, which resolves to TF-IDF when scikit-learn is
+    importable and to Jaccard when it is not. Milestone 13 measured that the two disagree about
+    which examples are duplicates, so ``"auto"`` lets the *installed packages* decide what the
+    audit reports. Passing ``"tfidf"`` or ``"jaccard"`` pins the detector, which is the only way
+    to reproduce a published audit number without reproducing the environment that produced it.
+    Milestone 14 added the parameter after finding that ``docs/RESULTS.md`` published Jaccard
+    figures no command could produce.
     """
     examples = list(examples)
     if not examples:
         raise ValueError("there is nothing to audit: the dataset holds no examples")
 
-    dedup = find_duplicates(examples, near_require_same_answer=near_require_same_answer)
+    dedup = find_duplicates(
+        examples, near_method=near_method, near_require_same_answer=near_require_same_answer
+    )
     labels = audit_labels(examples)
     leakage = find_leakage(
-        examples, dedup_report=dedup, near_require_same_answer=near_require_same_answer
+        examples,
+        dedup_report=dedup,
+        near_method=near_method,
+        near_require_same_answer=near_require_same_answer,
     )
     difficulty = score_dataset(examples, n_resamples=difficulty_resamples, seed=seed)
     facts = observed_split_facts(examples, dedup, leakage)

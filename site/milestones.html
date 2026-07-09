@@ -24,6 +24,7 @@
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="integration.html">Integration</a>
+    <a href="claims.html">Claims</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html">Roadmap</a>
@@ -324,10 +325,29 @@
   from the deliberately flawed <code>qa_toy</code> fixture, which is the only correct answer. See
   <a href="integration.html">Integration contracts</a>.</p>
 
-  <h3>Milestone 14 — Final portfolio report</h3>
-  <p>Bring README and docs to portfolio quality: problem, architecture, example
-  audit, detected issues, dataset-card example, reproduction commands,
-  limitations, and the research path.</p>
+  <h3>Milestone 14 — Final portfolio report <span class="status done">landed</span></h3>
+  <p>README and docs brought to portfolio quality — problem, architecture, a worked example audit,
+  what the pipeline finds, a dataset-card example, reproduction commands, limitations, and the
+  research path — and then the prose was <a href="claims.html">audited by the repository</a>.</p>
+  <p>The reason is Milestone 13's own correction. It measured that a release is not reproducible
+  from its inputs and seed alone, because the build environment is an input, and it fixed the
+  sentence that said otherwise in exactly one place: <code>REPRODUCE.md</code>, which is generated
+  and pinned by a test. The identical false sentence survived untouched in <code>README.md</code>,
+  <code>docs/METHODOLOGY.md</code> and <code>docs/PLAN.md</code> — three files no test had ever read.
+  <strong>A generated artifact is enforced; prose is not.</strong></p>
+  <p><code>scripts/verify_docs.py</code> runs ten checks: links resolve, every documented
+  <code>evalforge</code> command names a real subcommand and real options against the live parser,
+  every cited test count is what pytest collects, every cited fixture id exists, no live document
+  <em>asserts</em> a retired claim, and every number in <code>docs/CLAIMS.md</code> is reproduced by
+  the command the ledger says produces it. Two results came out of it. <strong>A number is not a
+  claim until it names the command that produced it</strong>: the <code>qa_toy</code> calibration
+  p-value is 0.789 under <code>evalforge difficulty</code> and 0.777 under <code>evalforge audit</code>
+  — same fixture, same seed, same statistic, different <code>--resamples</code> default, and both
+  correct. And two published figures had <strong>no command that could produce them</strong>: the
+  Jaccard block counts required uninstalling scikit-learn, so <code>audit --near-method
+  {auto,tfidf,jaccard}</code> now pins the detector. A phrasing lint that could not separate a claim
+  from its correction was measured at precision 0/2, recall 0/1, and ships registered but disabled —
+  the same treatment Milestone 13 gave <code>difficulty_is_calibrated</code>.</p>
 
   <h3>Milestone 15 — Final cleanup</h3>
   <p>Run the full gate — tests, lint, fixture validation, smoke audit, release

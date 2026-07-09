@@ -121,6 +121,35 @@ def test_audit_does_not_mutate_the_examples_it_is_handed() -> None:
     assert [example.model_dump(mode="json") for example in examples] == before
 
 
+def test_near_method_pins_the_detector_instead_of_letting_pip_choose_it() -> None:
+    """Milestone 14: ``--near-method`` makes a published audit number reproducible.
+
+    Before it existed, ``auto`` resolution meant the only way to see the Jaccard figures that
+    ``docs/RESULTS.md`` and ``docs/DEDUPLICATION.md`` have published since Milestone 4 was to
+    uninstall scikit-learn. The environment chose the detector, and the detectors disagree.
+    """
+    examples = loader.load_examples(FIXTURES / "bio_toy" / "examples.jsonl")
+
+    tfidf = run_audit(examples, dataset_id="bio_toy", near_method="tfidf")
+    jaccard = run_audit(examples, dataset_id="bio_toy", near_method="jaccard")
+
+    assert tfidf.dedup.near_method == "tfidf"
+    assert jaccard.dedup.near_method == "jaccard"
+
+    # The two disagree on this fixture: tfidf pairs bio-001 with bio-002, jaccard does not.
+    # That disagreement is the whole reason the flag had to exist.
+    assert len(tfidf.dedup.near) == 1
+    assert len(jaccard.dedup.near) == 0
+
+
+def test_near_method_defaults_to_auto_and_changes_nothing() -> None:
+    """The flag is additive: an audit run without it behaves exactly as it did before."""
+    examples = loader.load_examples(QA_TOY)
+    assert run_audit(examples, dataset_id="qa_toy").to_dict() == run_audit(
+        examples, dataset_id="qa_toy", near_method="auto"
+    ).to_dict()
+
+
 def test_unsplit_dataset_reports_vacuity_not_health() -> None:
     """Four checks are undefined without a split. Their zeros must not read as a clean bill."""
     examples = [
