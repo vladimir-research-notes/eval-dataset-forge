@@ -21,6 +21,7 @@
     <a href="splits.html">Splits</a>
     <a href="difficulty.html">Difficulty</a>
     <a href="statistics.html">Statistics</a>
+    <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
@@ -67,14 +68,33 @@
     <tr><td><code>version</code></td><td>no</td><td>example content/schema version</td></tr>
   </table>
 
-  <h2>Release bundle</h2>
-<pre><code>datasets/releases/&lt;dataset_id&gt;_v&lt;version&gt;/
+  <h2>Release bundle <span class="status done">Milestone 10</span></h2>
+<pre><code>datasets/releases/&lt;dataset_id&gt;_v&lt;major.minor.patch&gt;/
   examples.jsonl        the data (validated)
-  manifest.json         DatasetManifest: hashes, splits, counts, audit summary
-  audit.json / audit.md AuditResult + human-readable report
-  dataset_card.md       purpose, construction, known issues, non-goals
+  manifest.json         DatasetManifest: hashes, splits, counts, audit summary, identities
+  audit.json / audit.md AuditResult + human-readable report   (audit.md: M12)
+  dataset_card.md       purpose, construction, known issues, non-goals   (M11)
   splits/{train,dev,test}.jsonl
   REPRODUCE.md          exact rebuild commands</code></pre>
+
+  <p><code>DatasetManifest</code> gained seven fields in Milestone 10 — additive, with defaults, so
+  <code>SCHEMA_VERSION</code> is unchanged and pre-existing manifests still load:</p>
+  <table>
+    <tr><th>field</th><th>meaning</th></tr>
+    <tr><td><code>content_id</code></td><td>order-independent digest of the examples, <code>split</code> excluded — <em>are these the same examples?</em></td></tr>
+    <tr><td><code>eval_id</code></td><td>the same digest with each example's split folded in — <em>are two reported scores comparable?</em></td></tr>
+    <tr><td><code>source_content_id</code></td><td>pins the pre-exclusion corpus</td></tr>
+    <tr><td><code>tool_version</code></td><td>the builder that produced the bundle</td></tr>
+    <tr><td><code>split_spec</code></td><td>strategy, seed, ratios — provenance, not identity</td></tr>
+    <tr><td><code>excluded</code></td><td>every removed example, its reason, and the id of the member kept</td></tr>
+    <tr><td><code>dependence</code></td><td>block structure (counts and size histogram), <em>not</em> <code>effective_n</code></td></tr>
+  </table>
+  <p>Both aggregate ids bind a purpose tag <em>and</em> <code>SCHEMA_VERSION</code>, so a content id
+  can never be read as an eval id and a schema bump changes every id by construction. The bytes that
+  are <em>hashed</em> sort their keys and strip whitespace; the bytes that are <em>written</em>
+  preserve schema field order, because a human reads them. <code>manifest.json</code> is excluded
+  from its own <code>hashes</code> map — a file cannot contain its own digest. See
+  <a href="releases.html">Releases</a>.</p>
 
   <h2 id="fixtures">Fixture datasets <span class="status done">Milestone 2</span></h2>
   <p>Five small, synthetic datasets under <code>datasets/fixtures/</code> exercise

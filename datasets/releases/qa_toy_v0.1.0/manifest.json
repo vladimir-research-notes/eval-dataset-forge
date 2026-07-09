@@ -1,0 +1,92 @@
+{
+  "dataset_id": "qa_toy",
+  "version": "0.1.0",
+  "created_at": "2026-07-09T00:00:00+00:00",
+  "source_files": [
+    "datasets/fixtures/qa_toy/examples.jsonl"
+  ],
+  "example_count": 14,
+  "schema_version": "0.1.0",
+  "hashes": {
+    "REPRODUCE.md": "sha256:455253f11a6871171fbd2dc9d6db908091ddf4e9634123a504c52ef0d8cbbb94",
+    "audit.json": "sha256:a1b4a7cc0a3907d196526e53db2b2ad25a9bc860314dfc39c2fa7fa488981981",
+    "examples.jsonl": "sha256:589e8aeec88392f07c17148c27ff62fbeb5c27801cbf3c7f264ccc1eab77e812",
+    "splits/dev.jsonl": "sha256:c732f6d146c497202dbb71d5883f844638ff7ebaa78de4bd28db9ec1dc52aa64",
+    "splits/test.jsonl": "sha256:9aea588790d95875250da6dfc66d57572281e2fefafb96b8f6327006b5542470",
+    "splits/train.jsonl": "sha256:87cf735ecb33fca645a9bbf5416bd78600105f7620d21992867af8c339b99635"
+  },
+  "splits": {
+    "dev": {
+      "count": 1,
+      "path": "splits/dev.jsonl",
+      "sha256": "sha256:c732f6d146c497202dbb71d5883f844638ff7ebaa78de4bd28db9ec1dc52aa64"
+    },
+    "test": {
+      "count": 2,
+      "path": "splits/test.jsonl",
+      "sha256": "sha256:9aea588790d95875250da6dfc66d57572281e2fefafb96b8f6327006b5542470"
+    },
+    "train": {
+      "count": 11,
+      "path": "splits/train.jsonl",
+      "sha256": "sha256:87cf735ecb33fca645a9bbf5416bd78600105f7620d21992867af8c339b99635"
+    }
+  },
+  "audit_results": {
+    "exact_duplicates": 1,
+    "near_duplicates": 1,
+    "leakage_flags": 1,
+    "label_warnings": 8,
+    "pii_flags": 0,
+    "recommendations": 5
+  },
+  "known_limitations": [
+    "Near-duplicate detection is lexical (tfidf). A paraphrase below the threshold is not detected, so every duplicate, leakage, and block count here is a lower bound.",
+    "manifest.json is not self-hashed. verify-release detects accidental corruption of the data, not deliberate rewriting of the manifest that describes it.",
+    "No effective sample size is quoted. It depends on an intraclass correlation, which depends on the systems being scored; manifest.dependence carries the block structure needed to compute it.",
+    "The difficulty buckets are an uncalibrated heuristic on this corpus: their ranking is not distinguishable from a random ranking of the declared tags."
+  ],
+  "license_notes": "Synthetic fixture data, CC0-1.0. No real personal, clinical, or patient data.",
+  "content_id": "sha256:a271768e2254cd6992cdc9a34dadce4c310cf784b4d53997547aaf536010af2d",
+  "eval_id": "sha256:a1fb253b7597a336e1e7ed3757db40c6ab9083c6672662a1fa6a8d528958808a",
+  "source_content_id": "sha256:a271768e2254cd6992cdc9a34dadce4c310cf784b4d53997547aaf536010af2d",
+  "tool_version": "0.0.0",
+  "split_spec": {
+    "strategy": "adversarial",
+    "seed": 0,
+    "ratios": {
+      "train": 0.7,
+      "dev": 0.1,
+      "test": 0.2
+    },
+    "group_key": "duplicate_cluster",
+    "constraints": {
+      "stratify_by": [
+        "task_family"
+      ],
+      "eval_splits": [
+        "dev",
+        "test"
+      ],
+      "quarantined": [
+        "qa-010",
+        "qa-011",
+        "qa-008",
+        "qa-009"
+      ],
+      "near_method": "tfidf"
+    }
+  },
+  "excluded": [],
+  "dependence": {
+    "block_count": 11,
+    "block_size_histogram": {
+      "1": 9,
+      "2": 1,
+      "3": 1
+    },
+    "duplicate_block_count": 2,
+    "near_method": "tfidf",
+    "note": "effective_n is a property of a scored comparison, not of a dataset: it needs an intraclass correlation, which needs system scores. Resample these blocks, not the rows — see docs/STATISTICS.md."
+  }
+}

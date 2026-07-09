@@ -21,6 +21,7 @@
     <a href="splits.html">Splits</a>
     <a href="difficulty.html">Difficulty</a>
     <a href="statistics.html">Statistics</a>
+    <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
@@ -37,7 +38,7 @@
 
   <h2>Stages</h2>
 <pre><code>load → validate → dedup → leakage → label-audit → difficulty
-     → splits → statistics → report</code></pre>
+     → splits → statistics → report → release</code></pre>
   <table>
     <tr><th>stage</th><th>what it checks</th><th>exact / heuristic</th></tr>
     <tr><td><a href="validation.html">validate</a> <span class="status done">M3</span></td><td>schema, ID uniqueness, PII/secrets, quality</td><td>exact + heuristic</td></tr>
@@ -47,7 +48,12 @@
     <tr><td><a href="difficulty.html">difficulty</a> <span class="status done">M8</span></td><td>surface score, buckets, and a calibration verdict on the score itself</td><td>heuristic — and <strong>uncalibrated</strong> on these fixtures</td></tr>
     <tr><td><a href="splits.html">splits</a> <span class="status done">M7</span></td><td>sizes, distributions, residual cross-split leakage</td><td>exact, given the dedup clusters</td></tr>
     <tr><td><a href="statistics.html">statistics</a> <span class="status done">M9</span></td><td>bootstrap CIs, paired comparison, ranking stability, small-N warnings</td><td>resampling — <strong>cluster-aware</strong>, and a lower bound on the dependence</td></tr>
+    <tr><td><a href="releases.html">release</a> <span class="status done">M10</span></td><td>manifest, content hashes, two dataset identities, re-run audit, <code>REPRODUCE.md</code></td><td>exact — but every <em>count</em> it carries is a lower bound</td></tr>
   </table>
+
+  <p>The <code>release</code> stage applies any exclusions first and then runs the whole ladder
+  <em>again</em> over the survivors, because dropping one member of an exact pair dissolves the
+  cluster: an audit computed before the drop would describe a defect the release does not have.</p>
 
   <h2>Design principles</h2>
   <ul>

@@ -21,6 +21,7 @@
     <a href="splits.html">Splits</a>
     <a href="difficulty.html">Difficulty</a>
     <a href="statistics.html">Statistics</a>
+    <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="results.html">Results</a>
     <a href="limitations.html" class="active">Limitations</a>
@@ -118,6 +119,36 @@
       labelled examples. The stage also inherits a defect from the label audit: an example
       with a missing gold answer scores at the floor of the output-complexity signal and so
       looks <em>easy</em>.</li>
+
+    <li><strong>A release manifest detects accident, not an adversary.</strong>
+      <code>manifest.json</code> cannot contain its own digest, so anyone able to rewrite the data
+      can rewrite the hashes, the <code>content_id</code>, and the <code>eval_id</code> that
+      describe it — and <code>verify-release</code> will report the result as internally
+      consistent. It is an <em>integrity</em> check, not an <em>authenticity</em> one. Signing is
+      out of scope and out of the dependency budget. A reader who already knows the published
+      <code>content_id</code> can still detect the substitution;
+      <code>test_verify_release_cannot_detect_a_rewritten_manifest</code> asserts the hole rather
+      than leaving it implied.</li>
+
+    <li><strong>A version bump is a claim about scores, not about validity.</strong> The
+      <code>minor</code> bump says a train-only change cannot move a fixed system's test score. It
+      does <em>not</em> say the release is still a valid benchmark: a train-only addition can
+      introduce train→test leakage that changes what that score measures for a system trained on
+      the release. Every <code>minor</code> emits a warning saying so; the delta classifies and does
+      not re-audit. The delta also joins on <code>example_id</code>, so renumbering ids without
+      changing content reads as a full removal plus addition and forces a <code>major</code> —
+      conservative, and noisy. And <code>eval_id</code> is blind to a change of metric: it can say
+      the arrangement moved, not that the scoring function did.</li>
+
+    <li><strong>The split seed is an experimental parameter, and a large one.</strong> On the pooled
+      fixtures, varying only the seed moves the reported headline number with sd <strong>0.130</strong>
+      against a top-two system gap of <strong>0.036</strong> — so the test split reproduces the
+      corpus's own ordering 48.7% of the time under <code>random</code>. Any single reported number
+      from a corpus this size is an estimate with a standard error larger than the effect. Both
+      <code>content_id</code> and <code>eval_id</code> are recorded so a reader can at least tell
+      whether two numbers are answering the same question. Every count a release carries — block
+      count, duplicate clusters, leakage flags — is also a <em>lower bound</em>, inheriting the
+      deduplication stage's lexical recall.</li>
   </ul>
 
   <h2>Non-goals</h2>

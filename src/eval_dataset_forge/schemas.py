@@ -309,10 +309,37 @@ class AuditResult(ForgeModel):
 class DatasetManifest(ForgeModel):
     """The provenance/inventory record written as ``manifest.json`` per release.
 
-    ``hashes`` holds sha256 content hashes of the examples and split files;
-    ``splits`` maps split name → ``{count, path}``; ``audit_results`` carries the
-    :meth:`AuditResult.summary` counts. ``schema_version`` defaults to the current
+    ``hashes`` holds ``sha256:<hex>`` digests of the release's *files*;
+    ``splits`` maps split name → ``{count, path, sha256}``; ``audit_results`` carries
+    the :meth:`AuditResult.summary` counts. ``schema_version`` defaults to the current
     ``SCHEMA_VERSION`` so a release records the format it was built against.
+
+    **Three identities, because a file hash answers the wrong question.** A hash of
+    ``examples.jsonl`` changes when the JSON key order changes and stays put when the
+    split assignment does. Neither is what a reader comparing two reported scores needs
+    to know. So a manifest carries:
+
+    ``hashes``
+        Per-file ``sha256``. Answers *"did these bytes survive the trip?"*
+    ``content_id``
+        Order-independent digest over the released examples' content, ignoring ``split``.
+        Answers *"are these the same examples?"*
+    ``eval_id``
+        The same digest with each example's split folded in. Answers *"are scores measured
+        on these two releases comparable?"* — the only question a leaderboard actually
+        asks, and the one that drives the version bump (see
+        :mod:`eval_dataset_forge.datasets.versioning`).
+
+    ``source_content_id`` records the content id *before* ``excluded`` examples were
+    dropped, so a release that removed data says so in a form a reader can check against
+    the source file.
+
+    ``dependence`` records the duplicate-block structure (``block_count``,
+    ``block_size_histogram``, ``near_method``) and deliberately does **not** record an
+    ``effective_n``. Effective sample size is a property of a *scored comparison*, not of
+    a dataset: it needs an intraclass correlation, which needs system scores, which a
+    dataset does not have. The block structure is what a reader needs to compute it for
+    their own systems; quoting a single number here would mean inventing an ICC.
     """
 
     dataset_id: NonEmptyStr
@@ -326,6 +353,13 @@ class DatasetManifest(ForgeModel):
     audit_results: dict[str, Any] = Field(default_factory=dict)
     known_limitations: list[str] = Field(default_factory=list)
     license_notes: str = ""
+    content_id: str = ""
+    eval_id: str = ""
+    source_content_id: str = ""
+    tool_version: str = ""
+    split_spec: SplitSpec | None = None
+    excluded: list[dict[str, Any]] = Field(default_factory=list)
+    dependence: dict[str, Any] = Field(default_factory=dict)
 
 
 class DatasetCard(ForgeModel):

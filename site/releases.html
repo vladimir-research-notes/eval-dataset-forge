@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Release builder &amp; dataset identity</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="validation.html">Validation</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="releases.html" class="active">Releases</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status done">implemented in Milestone 10</span></p>
+  <h1>Release builder &amp; dataset identity</h1>
+  <p class="lede">A release turns an audited corpus into a citable artifact: examples, splits,
+  a manifest, an audit, and the command that regenerates all of it byte-for-byte. The hard part
+  was never the packaging. It was working out what a release's <em>identity</em> should mean.</p>
+
+  <div class="callout warn"><strong>The headline.</strong> Two releases can hold identical data
+  and produce incomparable numbers — and on this repository's own corpus, the difference is
+  <em>larger than the effect the benchmark exists to measure</em>. Holding the data and every
+  system's score vector fixed and varying only the split seed, the reported headline number moves
+  with <strong>sd 0.130</strong> against a top-two system gap of <strong>0.036</strong>. A content
+  hash cannot see any of it.</div>
+
+  <h2>1. A file hash answers the wrong question</h2>
+  <p>A digest over <code>examples.jsonl</code> changes when the dataset does not — reorder the
+  rows, reformat the JSON, rebuild on a different clock — and holds still when the dataset's
+  <em>meaning</em> moves, because re-cutting the splits leaves every byte of the corpus in place.
+  So a release carries three identities, each answering a different question.</p>
+
+  <table>
+    <tr><th>identity</th><th>answers</th><th>construction</th></tr>
+    <tr><td><code>hashes[&lt;file&gt;]</code></td><td>Did these bytes survive the trip?</td>
+        <td>SHA-256 of the file as written</td></tr>
+    <tr><td><code>content_id</code></td><td>Are these the same examples?</td>
+        <td>Order-independent digest of the examples, <code>split</code> excluded</td></tr>
+    <tr><td><code>eval_id</code></td><td>Are two reported scores comparable?</td>
+        <td>The same digest with each example's split folded in</td></tr>
+  </table>
+
+  <p>Both aggregate ids bind a purpose tag <em>and</em> <code>SCHEMA_VERSION</code> (domain
+  separation), so a content id can never be read as an eval id, and a schema bump changes every id
+  by construction. <code>content_id</code> sorts the per-example digests but does <em>not</em>
+  deduplicate them: a corpus listing an example twice is not the corpus listing it once, which is
+  the entire premise of <a href="deduplication.html">Milestone 4</a>.</p>
+
+  <div class="callout"><strong>Canonicalization is not serialization.</strong> The bytes that get
+  <em>hashed</em> sort their keys and strip whitespace. The bytes that get <em>written</em>
+  preserve schema field order, because a human reads them. Hashing the presentation form would
+  make a dataset's identity depend on how its writer felt about field order.</div>
+
+  <h2>2. The measurement behind <code>eval_id</code></h2>
+  <p>Hold the corpus fixed. Hold each system's per-example score vector fixed — generated once,
+  never re-drawn. Vary only the split seed. Anything that moves is caused by the split. Pooled
+  corpus: 56 examples, 44 independent blocks, 3 simulated systems, 400 seeds per strategy
+  (<code>scripts/split_identity_experiment.py</code>).</p>
+
+  <table>
+    <tr><th>quantity</th><th>value</th></tr>
+    <tr><td>distinct <code>content_id</code> across all 400 seeds × 3 strategies</td><td><strong>1</strong></td></tr>
+    <tr><td>full-corpus accuracy, <code>sys_a</code> / <code>sys_b</code></td><td>0.6964 / 0.6607</td></tr>
+    <tr><td><strong>the gap the benchmark exists to resolve</strong></td><td><strong>+0.0357</strong></td></tr>
+    <tr><td><code>sys_a</code> test accuracy under <code>random</code></td><td>mean 0.7011, <strong>sd 0.1300</strong>, range [0.364, 1.000]</td></tr>
+    <tr><td>P(test reproduces the corpus ordering of the top two)</td><td><strong>0.487</strong></td></tr>
+    <tr><td>P(the top two tie on test)</td><td>0.172</td></tr>
+    <tr><td>leader by seed</td><td><code>sys_a</code> 186 · <code>sys_b</code> 128 · <code>sys_c</code> 8 · tie 78</td></tr>
+  </table>
+
+  <p>The split seed is worth <strong>3.6× the effect the benchmark measures</strong>, and which
+  system "wins" is decided by the seed rather than by the systems. The mean over seeds recovers the
+  corpus number (0.7011 vs 0.6964), so this is variance, not bias — an honest estimator of a
+  quantity 11 examples cannot pin down. That is
+  <a href="statistics.html">Milestone 9</a>'s problem. Milestone 10's problem is the corollary: a
+  release identified only by its content would call all 400 of those releases the same.</p>
+
+  <h2>3. A claim the measurements killed</h2>
+  <p>The first draft of <code>RELEASES.md</code> said the <code>adversarial</code> strategy
+  produces a <em>better</em> test split, pointing at its agreement rate: it reproduces the corpus
+  ordering 65.0% of the time against <code>random</code>'s 48.7%. The sub-population accuracies say
+  otherwise.</p>
+
+  <table>
+    <tr><th>estimand</th><th><code>sys_a</code></th><th><code>sys_b</code></th><th>gap</th></tr>
+    <tr><td>whole corpus (n=56)</td><td>0.6964</td><td>0.6607</td><td>+0.0357</td></tr>
+    <tr><td>singletons only (n=36)</td><td>0.6667</td><td>0.6389</td><td>+0.0278</td></tr>
+    <tr><td>duplicate-cluster examples only (n=20)</td><td>0.7500</td><td>0.7000</td><td>+0.0500</td></tr>
+  </table>
+
+  <table>
+    <tr><th>strategy</th><th>mean test gap (400 seeds)</th><th>sd</th></tr>
+    <tr><td><code>random</code></td><td>+0.0409</td><td>0.1890</td></tr>
+    <tr><td><code>stratified</code></td><td>+0.0504</td><td>0.1648</td></tr>
+    <tr><td><code>adversarial</code></td><td><strong>+0.1029</strong></td><td>0.1452</td></tr>
+  </table>
+
+  <p><code>adversarial</code> evicts duplicate clusters from <code>dev</code>/<code>test</code>, and
+  the duplicated examples are not a random subset — both systems score higher on them. Its test set
+  therefore measures a sub-population whose <strong>true gap is nearly three times larger</strong>,
+  and a larger true effect is easier to detect. Its higher agreement rate is a consequence of a
+  <em>different estimand</em>, not of a lower-variance estimate of the same one. The tool records
+  <code>split_spec</code> and <code>eval_id</code> so a reader can tell which question a number
+  answers. <strong>It does not rank the strategies.</strong></p>
+
+  <h2>4. The version bump keys on the evaluation splits</h2>
+  <table>
+    <tr><th>bump</th><th>when</th></tr>
+    <tr><td><code>major</code></td><td>anything <code>dev</code> ∪ <code>test</code> can see — including a pure re-split</td></tr>
+    <tr><td><code>minor</code></td><td>train-only content changes</td></tr>
+    <tr><td><code>patch</code></td><td>packaging</td></tr>
+    <tr><td><code>none</code></td><td>the clock</td></tr>
+  </table>
+
+  <p>A pure re-split is <code>major</code>: the one verdict a curator finds surprising, and the
+  reason the 400-seed experiment exists. There is <strong>no <code>0.x</code> special case</strong>
+  — the usual "below 1.0 anything goes" convention collapses <code>major</code> and
+  <code>minor</code> exactly on the datasets most likely to be re-cut weekly, so
+  <code>0.1.0</code> + <code>major</code> = <code>1.0.0</code>. <code>created_at</code> reaches no
+  hashed artifact; without that, <code>none</code> would be unreachable and <code>patch</code>
+  meaningless. And the version cannot influence the bump that chose it: because
+  <code>audit.json</code> and <code>REPRODUCE.md</code> embed the version string, the candidate
+  manifest used for the delta is assembled at the <em>previous</em> version — otherwise every
+  rebuild would report at least a <code>patch</code> on hash churn alone.</p>
+
+  <h2>5. The audit describes the data that shipped</h2>
+  <p>Exclusions are applied first, then the dedup / leakage / label / difficulty ladder runs
+  <em>again</em> over the survivors. Dropping one member of an exact pair dissolves the cluster; a
+  report computed before the drop would describe a defect the release does not have. Deletion is
+  recorded, never silent: <code>manifest.excluded</code> names every removed example, its reason,
+  and the id of the member kept, while <code>source_content_id</code> pins the pre-exclusion
+  corpus. Nothing is dropped by default.</p>
+
+  <h2>6. The question Milestone 9 left open</h2>
+  <p><em>"Should the manifest record <code>effective_n</code> alongside <code>example_count</code>?"</em>
+  <strong>No.</strong> Since <code>n_eff = n / (1 + (m̄ − 1)·ICC)</code> and the ICC is a property of
+  a <em>scored comparison</em>, it needs system scores — which a dataset does not have. A manifest
+  quoting an <code>effective_n</code> would be quoting an assumed ICC and passing it off as a
+  property of the data. So <code>manifest.dependence</code> records exactly what the computation
+  needs and stops: <code>block_count</code>, <code>block_size_histogram</code>,
+  <code>duplicate_block_count</code>, <code>near_method</code>, and a note pointing at
+  <code>--resample-unit block</code>.</p>
+
+  <h2>Commands</h2>
+  <pre><code>PYTHONPATH=src python3 -m eval_dataset_forge release \
+  --dataset datasets/fixtures/qa_toy/examples.jsonl \
+  --dataset-id qa_toy --version 0.1.0 --strategy adversarial --seed 0 \
+  --quarantine-blocking --out datasets/releases/qa_toy_v0.1.0
+
+PYTHONPATH=src python3 -m eval_dataset_forge verify-release \
+  --release datasets/releases/qa_toy_v0.1.0</code></pre>
+
+  <p><code>verify-release</code> runs ten checks and <em>prints the ones that passed</em> — a
+  verifier that only prints failures is indistinguishable from one that did nothing. It collects
+  problems rather than raising, so one pass reports every defect.</p>
+
+  <div class="callout warn"><strong>Honest negatives.</strong>
+  <ul>
+    <li><strong><code>verify-release</code> detects accident, not an adversary.</strong>
+      <code>manifest.json</code> cannot hash itself, so anyone able to rewrite the data can rewrite
+      the digests describing it. Signing is out of scope and out of the dependency budget.
+      <code>test_verify_release_cannot_detect_a_rewritten_manifest</code> asserts the hole rather
+      than leaving it implied.</li>
+    <li><strong>Every count in a release except the ids is a lower bound.</strong>
+      <code>block_count</code>, the duplicate clusters, and the leakage flags all inherit
+      Milestone 4's lexical recall bound. <code>ret-001</code>/<code>ret-002</code> is invisible
+      here too.</li>
+    <li><strong>The <code>minor</code> bump is about score comparability, not benchmark
+      validity.</strong> A train-only addition cannot move a fixed system's test score, but it
+      <em>can</em> introduce train→test leakage that changes what that score measures for a system
+      trained on the release. Every <code>minor</code> emits a warning saying so.</li>
+    <li><strong>The delta joins on <code>example_id</code>.</strong> Renumbering ids without
+      changing content reads as a full removal plus addition and forces a <code>major</code>.
+      Conservative, and noisy.</li>
+    <li><strong><code>eval_id</code> is blind to a change of metric.</strong> It can say the
+      arrangement moved. It cannot say the scoring function did, because a dataset does not carry
+      one.</li>
+    <li><strong>The committed demo release has a two-example test split.</strong> It is the honest
+      output of the documented defaults on a 14-example fixture, and the release warns that its
+      test split cannot measure <code>hard</code>. It demonstrates the format; it is not a
+      benchmark.</li>
+    <li><strong>The experiment's system scores are synthetic.</strong> No model runs offline. The
+      block structure and the split strategies are real, and the claim is about the
+      <em>estimator</em> rather than about any model. Nothing here is a statement about any real
+      system.</li>
+  </ul></div>
+
+  <h3>Relevant files</h3>
+  <ul>
+    <li><code>src/eval_dataset_forge/datasets/writer.py</code> — canonical vs written bytes, SHA-256 helpers</li>
+    <li><code>src/eval_dataset_forge/datasets/versioning.py</code> — <code>content_id</code>, <code>eval_id</code>, <code>compare()</code>, the bump rule</li>
+    <li><code>src/eval_dataset_forge/datasets/manifest.py</code> — <code>build_manifest()</code>, <code>verify_release()</code> (ten checks)</li>
+    <li><code>src/eval_dataset_forge/datasets/release.py</code> — exclusions, re-audit, <code>REPRODUCE.md</code>, orchestration</li>
+    <li><code>scripts/split_identity_experiment.py</code> — the harness behind the headline</li>
+    <li><code>datasets/releases/qa_toy_v0.1.0/</code> — a committed demo release</li>
+    <li><code>tests/test_release.py</code> — 72 tests</li>
+    <li><code>docs/RELEASES.md</code></li>
+  </ul>
+
+  <h3>Status</h3>
+  <p>Implemented in Milestone 10. <strong>1595 tests pass</strong> (1523 prior + 72 release).
+  The committed demo release passes all ten checks; the command printed inside its own
+  <code>REPRODUCE.md</code> regenerates it byte-for-byte, verified under several
+  <code>PYTHONHASHSEED</code> values in separate interpreters. A single flipped byte in
+  <code>examples.jsonl</code> trips three independent checks. <code>audit.md</code> and
+  <code>dataset_card.md</code> are not written yet — every <code>REPRODUCE.md</code> says which two
+  artifacts the bundle is missing and which milestone lands them (12 and 11).</p>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>Is <code>major</code> too blunt for an <em>addition</em> to <code>test</code>? Adding ten
+      test examples does not invalidate an old score on the old test set; it makes the two numbers
+      describe different sets. A separate "superset" level would say so — and would be a level
+      nobody knows how to act on.</li>
+    <li>Should <code>--drop near</code> exist? It deletes real data on a heuristic this repo has
+      already measured to have disputed false positives. It is off by default and fully recorded,
+      but nothing stops a curator reaching for it because it makes the audit look clean.</li>
+    <li><code>content_id</code> covers <code>metadata</code> and <code>provenance</code>. Arguably a
+      note in <code>metadata</code> is not data — and arguably <code>metadata.retrieval.docs</code>
+      very much is. No rule distinguishes them without a schema saying which keys are load-bearing.</li>
+    <li>The delta reads the previous release from disk, so <code>--version auto</code> is
+      unavailable exactly when the previous release is hardest to obtain.</li>
+    <li>Should <code>verify-release</code> re-run the audit? Doing so would make verification cost a
+      full audit and would silently re-run heuristics whose thresholds may have moved between tool
+      versions — turning a byte-integrity check into a claim about method stability.</li>
+  </ul>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

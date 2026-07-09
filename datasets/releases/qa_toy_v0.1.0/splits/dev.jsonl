@@ -1,0 +1,1 @@
+{"example_id": "qa-014", "source_id": "src-speed-light", "task_family": "qa", "input": "What is the approximate speed of light in a vacuum, in meters per second?", "expected_output": "299792458", "metadata": {}, "labels": {}, "difficulty_tags": ["hard"], "split": "dev", "provenance": "synthetic", "created_at": "2024-01-16", "version": "1"}

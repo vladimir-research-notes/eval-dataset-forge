@@ -260,6 +260,110 @@ def cmd_stats(args: argparse.Namespace) -> int:
     return 1 if args.fail_on_unstable_ranking and not report.ranking_resolved else 0
 
 
+def _release_command(args: argparse.Namespace) -> str:
+    """Reconstruct the canonical command for ``REPRODUCE.md``.
+
+    Rebuilt from the parsed arguments rather than echoed from ``sys.argv``: an argv can
+    carry shell quoting, an absolute path from someone's laptop, or flags in an order that
+    would make two identical releases render different bytes.
+
+    Only the flags that *determine the data* are recorded. Three are deliberately absent:
+
+    ``--created-at``
+        ``REPRODUCE.md`` is a hashed artifact and the clock is not identity.
+    ``--version`` / ``--out``
+        Under ``--version auto`` neither is known until the delta is computed;
+        ``render_reproduce`` appends both once the version resolves.
+    ``--previous``
+        It decides the version *number*, which the resolved ``--version`` already states
+        literally. Recording it would put a build-time comparison into a hashed artifact,
+        so re-running a build with ``--previous`` pointing at its own output would report a
+        spurious ``patch`` against itself — the data is identical and only the invocation
+        differed.
+    """
+    parts = ["PYTHONPATH=src python3 -m eval_dataset_forge release"]
+    parts += [f"--dataset {dataset}" for dataset in args.dataset]
+    parts.append(f"--dataset-id {args.dataset_id}")
+    parts.append(f"--strategy {args.strategy}")
+    parts.append(f"--seed {args.seed}")
+    parts.append(f"--ratios {args.ratios}")
+    if args.stratify_by:
+        parts.append(f"--stratify-by {args.stratify_by}")
+    if args.drop:
+        parts.append(f"--drop {args.drop}")
+    if args.quarantine_blocking:
+        parts.append("--quarantine-blocking")
+    if args.ignore_answer_gate:
+        parts.append("--ignore-answer-gate")
+    if args.license_notes:
+        parts.append(f"--license-notes {args.license_notes!r}")
+    return " \\\n  ".join(parts)
+
+
+def cmd_release(args: argparse.Namespace) -> int:
+    """Build a versioned, hashed, audited release directory from one or more datasets.
+
+    Exit code is 0 unless ``--fail-on-leakage`` is set and the built splits still contain a
+    cross-split duplicate cluster, or the requested ``--version`` is below the bump the
+    content requires. The version is *derived* from a comparison against ``--previous``:
+    anything visible to ``dev``/``test`` forces a major bump, because a score measured on
+    the old release does not carry over. The datasets package's release module is imported
+    lazily so the stdlib-only commands keep working without the scientific stack.
+    """
+    from eval_dataset_forge.datasets.release import build_release, format_report, write_release
+
+    try:
+        report = build_release(
+            args.dataset,
+            dataset_id=args.dataset_id,
+            version=args.version,
+            created_at=args.created_at or _utc_now(),
+            command=_release_command(args),
+            strategy=args.strategy,
+            ratios=_parse_ratios(args.ratios),
+            seed=args.seed,
+            stratify_by=[f.strip() for f in args.stratify_by.split(",") if f.strip()],
+            drop=[d.strip() for d in args.drop.split(",") if d.strip()] if args.drop else (),
+            quarantine_blocking=args.quarantine_blocking,
+            near_require_same_answer=not args.ignore_answer_gate,
+            license_notes=args.license_notes,
+            previous=args.previous,
+        )
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_report(report))
+
+    # The default output directory names the *derived* version, which `--version auto` only
+    # learns during the build.
+    out = args.out or f"datasets/releases/{args.dataset_id}_v{report.manifest.version}"
+    written = write_release(report, out)
+    print(f"\nwrote {len(written)} artifact(s) to {out}")
+    return 1 if args.fail_on_leakage and report.split_report.residual_overlap else 0
+
+
+def cmd_verify_release(args: argparse.Namespace) -> int:
+    """Check a release directory against its own manifest. Exit 1 if anything disagrees."""
+    from eval_dataset_forge.datasets.manifest import format_verify, verify_release
+
+    report = verify_release(args.release)
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_verify(report))
+    return 0 if report.ok else 1
+
+
+def _utc_now() -> str:
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).isoformat(timespec="seconds")
+
+
 def _cmd_pending(name: str):
     def handler(_args: argparse.Namespace) -> int:
         milestone = _PENDING[name]
@@ -462,6 +566,88 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit the report as JSON instead of text"
     )
     p_stats.set_defaults(func=cmd_stats)
+
+    p_release = sub.add_parser(
+        "release", help="build a versioned, hashed, audited release directory"
+    )
+    p_release.add_argument(
+        "--dataset",
+        required=True,
+        action="append",
+        metavar="PATH",
+        help="path to examples.jsonl; repeat to pool several files into one release",
+    )
+    p_release.add_argument("--dataset-id", required=True, help="stable id for the dataset")
+    p_release.add_argument(
+        "--version",
+        default="0.1.0",
+        help="MAJOR.MINOR.PATCH, or 'auto' to derive it from --previous. An explicit version "
+        "below the bump the content requires is an error",
+    )
+    p_release.add_argument(
+        "--previous",
+        metavar="DIR",
+        help="a previous release directory; the version bump is derived by comparing against it",
+    )
+    p_release.add_argument(
+        "--out", help="output directory (default: datasets/releases/<id>_v<version>)"
+    )
+    p_release.add_argument(
+        "--strategy",
+        default="adversarial",
+        choices=["random", "stratified", "source-grouped", "adversarial", "temporal"],
+        help="split construction strategy (default: adversarial — it is the only one that "
+        "keeps duplicate clusters out of the evaluation splits)",
+    )
+    p_release.add_argument("--seed", type=int, default=0, help="split seed (default: 0)")
+    p_release.add_argument(
+        "--ratios", default="0.7,0.1,0.2", help="split ratios as train,dev,test or name=value pairs"
+    )
+    p_release.add_argument(
+        "--stratify-by", default="task_family", help="comma-separated facets to stratify on"
+    )
+    p_release.add_argument(
+        "--drop",
+        metavar="TARGET,…",
+        help="delete redundant examples before building, from {exact, normalized, near, "
+        "blocking-labels}. Nothing is dropped by default; every removal is recorded in "
+        "manifest.excluded with the id of the member that was kept",
+    )
+    p_release.add_argument(
+        "--quarantine-blocking",
+        action="store_true",
+        help="keep label-audit blocking examples out of dev/test without deleting them",
+    )
+    p_release.add_argument(
+        "--ignore-answer-gate",
+        action="store_true",
+        help="let the near-duplicate stage pair examples with differing gold answers",
+    )
+    p_release.add_argument(
+        "--created-at",
+        metavar="ISO8601",
+        help="provenance timestamp (default: now). Enters no hash and neither identity; "
+        "pass it to make manifest.json byte-identical across rebuilds",
+    )
+    p_release.add_argument("--license-notes", default="", help="license text for the manifest")
+    p_release.add_argument(
+        "--fail-on-leakage",
+        action="store_true",
+        help="exit 1 if the built splits still contain a cross-split duplicate cluster",
+    )
+    p_release.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_release.set_defaults(func=cmd_release)
+
+    p_verify = sub.add_parser(
+        "verify-release", help="check a release directory against its own manifest"
+    )
+    p_verify.add_argument("--release", required=True, help="path to a release directory")
+    p_verify.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_verify.set_defaults(func=cmd_verify_release)
 
     p_card = sub.add_parser("dataset-card", help="generate a dataset card for a release")
     p_card.add_argument("--release", required=True, help="path to a release directory")

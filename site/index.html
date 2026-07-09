@@ -21,6 +21,7 @@
     <a href="splits.html">Splits</a>
     <a href="difficulty.html">Difficulty</a>
     <a href="statistics.html">Statistics</a>
+    <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
@@ -29,7 +30,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status scaffold">Milestone 8 — difficulty calibration</span></p>
+  <p><span class="status scaffold">Milestone 10 — release builder</span></p>
   <h1>Make evaluation datasets trustworthy</h1>
   <p class="lede">A benchmark that reports one accuracy number hides most of what
   decides whether that number means anything. eval-dataset-forge turns
@@ -110,7 +111,12 @@
   <strong>88.2%</strong> against a nominal 95% on a corpus with duplicate clusters, so the
   intervals resample <em>blocks</em> instead, the widely-reported "win fraction" is shown not
   to be a p-value (11.4% type-I error), and the demo leaderboard is reversed by deleting one
-  duplicate cluster. The remaining audit subsystems follow milestone by milestone — see
+  duplicate cluster. Milestone 10 landed the <a href="releases.html">release builder</a> — a
+  versioned bundle with a manifest, a re-run audit, and a <code>REPRODUCE.md</code> that
+  regenerates it byte-for-byte — carrying <em>two</em> dataset identities, because holding the
+  data fixed and varying only the split seed moves the reported headline number with
+  <strong>sd 0.130</strong> against a top-two system gap of <strong>0.036</strong>, which a
+  content hash cannot see. The remaining audit subsystems follow milestone by milestone — see
   <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
   contract.</p>
 

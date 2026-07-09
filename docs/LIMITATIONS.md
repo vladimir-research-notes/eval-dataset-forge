@@ -154,10 +154,59 @@ one duplicate cluster — reverses the leaderboard. `ranking_resolved` is False 
 `evalforge stats --fail-on-unstable-ranking` exits 1, rather than printing an ordering the
 data cannot support.
 
+## A release manifest detects accident, not an adversary
+
+`verify-release` recomputes every file hash and both content identities from a release's own
+contents. That is an **integrity** check. It is not an authenticity check, and the gap is
+structural rather than an oversight: `manifest.json` cannot contain its own digest, so anyone
+able to rewrite `examples.jsonl` can rewrite the hashes that describe it. Signing would close
+this and is out of scope and out of the dependency budget.
+
+`tests/test_release.py` asserts the hole directly — a consistently rewritten manifest verifies
+clean — so the limitation cannot quietly stop being true.
+
+Everything else the manifest reports is a **lower bound**, for the same reason every count
+upstream is: `block_count`, the release's duplicate clusters, and its leakage flags all inherit
+the near-duplicate stage's lexical recall bound. `content_id` and `eval_id` are the only exact
+quantities in the file.
+
+## A version bump is a claim about scores, not about validity
+
+The bump rule keys on what an evaluation split can see: anything added to, removed from, edited
+in, or reassigned across `dev`/`test` forces a `major`. A change confined to `train` is a `minor`,
+because it cannot move a *fixed* system's test score.
+
+It can, however, introduce train→test leakage that changes what that score **means** for a system
+trained on the release. The delta classifies; it does not re-audit. Score comparability and
+benchmark validity are different properties and only the first is decidable from a diff, so every
+`minor` bump emits a warning pointing back at the leakage section of `audit.json`.
+
+Two smaller edges: the delta joins releases by `example_id`, so renumbering ids without touching
+content reads as a full `removed` + `added` and forces a `major` (conservative, and noisy); and
+`eval_id` is blind to a change of *metric*, because a dataset does not carry one.
+
+## The split seed is an experimental parameter, and a large one
+
+On the pooled 56-example corpus, re-running the split builder with a different seed leaves the
+dataset byte-identical as a set of examples — `content_id` is unchanged across all 400 seeds
+tested — and moves the reported test accuracy of a fixed system with a standard deviation of
+**0.130**, against a top-two system gap of **0.036**. Under `random`, the test split reproduces
+the corpus's own ordering of the top two systems **48.7%** of the time.
+
+This is not a defect the tool can fix; it is what a 11–12 example evaluation split is worth. The
+tool's response is to make it *visible*: `eval_id` records the arrangement, `split_spec` records
+how it was produced, and a re-split is a `major` version bump rather than a silent one. See
+[`RELEASES.md`](RELEASES.md) §2.
+
+Note also that the split strategies do not estimate the same quantity, so their reported numbers
+are not interchangeable even at identical content — `adversarial` deliberately evaluates on a
+duplicate-free sub-population, on which the true system gap is larger.
+
 ## Non-goals
 
 - Not a certifier of universal benchmark quality.
 - Not a semantic dedup / embedding service (out of scope for the offline build).
+- Not a signing / attestation system. Release manifests detect corruption, not tampering.
 - Not a medical, legal, or security authority.
 - Not a data-labeling platform or annotation UI (a possible future direction).
 - Not a replacement for human judgement on ambiguous labels.

@@ -65,15 +65,30 @@ Notes:
 |-------|------|-------|
 | `dataset_id` | str | logical dataset name |
 | `version` | str | semantic release version, e.g. `0.1.0` |
-| `created_at` | str | ISO-8601 |
+| `created_at` | str | ISO-8601. **Provenance, not identity**: enters no hash and neither id |
 | `source_files` | list[str] | inputs used to build the release |
 | `example_count` | int | number of examples |
 | `schema_version` | str | matches `SCHEMA_VERSION` |
-| `hashes` | obj | content hashes (sha256) of examples + split files |
-| `splits` | obj | split name → count and file path |
+| `hashes` | obj | `sha256:<hex>` per release file. `manifest.json` is absent — a file cannot hash itself |
+| `splits` | obj | split name → `{count, path, sha256}` |
 | `audit_results` | obj | summary counts from the `AuditResult` |
 | `known_limitations` | list[str] | carried into the dataset card |
 | `license_notes` | str | licensing / usage notes |
+| `content_id` | str | **Milestone 10.** Order-independent digest of the examples, `split` excluded: *"are these the same examples?"* |
+| `eval_id` | str | **Milestone 10.** The same digest with each example's split folded in: *"are two reported scores comparable?"* |
+| `source_content_id` | str | **Milestone 10.** `content_id` of the corpus **before** `excluded` was applied |
+| `tool_version` | str | **Milestone 10.** the `evalforge` version that built the release |
+| `split_spec` | obj \| null | **Milestone 10.** the `SplitSpec` the splits were built from (strategy, seed, ratios, constraints) |
+| `excluded` | list[obj] | **Milestone 10.** `{example_id, reason, kept_id, method}` per removed example |
+| `dependence` | obj | **Milestone 10.** `{block_count, block_size_histogram, duplicate_block_count, near_method}` |
+
+The Milestone 10 fields are **additive with defaults**, so `SCHEMA_VERSION` did not move and a
+pre-existing manifest still loads.
+
+`dependence` deliberately carries **no `effective_n`**. Effective sample size is
+`n / (1 + (m̄ − 1)·ICC)` and the ICC is a property of a *scored comparison*, not of a dataset —
+it needs system scores. The block structure is what a reader needs to compute it for their own
+systems. See [`RELEASES.md`](RELEASES.md) §4 and [`STATISTICS.md`](STATISTICS.md).
 
 ## AuditResult
 
@@ -133,17 +148,25 @@ of the format.
 
 ```text
 datasets/releases/<dataset_id>_v<version>/
-  examples.jsonl        # the data (validated)
-  manifest.json         # DatasetManifest
-  audit.json            # AuditResult (machine-readable)
-  audit.md              # human-readable audit report
-  dataset_card.md       # DatasetCard rendered to Markdown
+  examples.jsonl        # the data (validated), in source order
+  manifest.json         # DatasetManifest — the only artifact nothing hashes
+  audit.json            # AuditResult, computed over the data that shipped
+  audit.md              # human-readable audit report          (Milestone 12 — not written yet)
+  dataset_card.md       # DatasetCard rendered to Markdown     (Milestone 11 — not written yet)
   splits/
     train.jsonl
     dev.jsonl
     test.jsonl
-  REPRODUCE.md          # exact commands to rebuild this release
+  REPRODUCE.md          # the command, the identities, and the gaps
 ```
+
+Written by `evalforge release` (Milestone 10) and checked by `evalforge verify-release`, which
+recomputes every file hash and both identities from the release's own contents. That is an
+**integrity** check, not an authenticity one: `manifest.json` cannot hash itself, so anyone able
+to rewrite the data can rewrite the digests describing it.
+
+Two builds at a fixed `--created-at` are byte-identical in every artifact; two builds at
+different clocks differ in `manifest.json` and nothing else.
 
 All fields above are defined as pydantic models so that malformed data fails
 loudly at load time rather than silently propagating into an audit.

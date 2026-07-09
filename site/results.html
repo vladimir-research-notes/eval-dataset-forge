@@ -21,6 +21,7 @@
     <a href="splits.html">Splits</a>
     <a href="difficulty.html">Difficulty</a>
     <a href="statistics.html">Statistics</a>
+    <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
     <a href="results.html" class="active">Results</a>
     <a href="limitations.html">Limitations</a>
@@ -199,6 +200,36 @@
   only for dependence the dedup ladder can see, so the design effect is a lower bound; and
   the demo's systems are simulated. Full analysis in <code>docs/STATISTICS.md</code>.</p>
 
+  <h2>Release identity <span class="status done">M10</span></h2>
+  <p>Is a dataset's content enough to identify a release? <strong>No.</strong> Hold the corpus
+  fixed, hold each system's per-example score vector fixed, and vary only the split seed. Anything
+  that moves is caused by the split — which is exactly what a content hash cannot see. Pooled
+  corpus: 56 examples, 44 independent blocks, 3 simulated systems, 400 seeds per strategy.</p>
+
+  <table>
+    <tr><th>quantity</th><th>value</th></tr>
+    <tr><td>distinct <code>content_id</code> across 400 seeds × 3 strategies</td><td><strong>1</strong></td></tr>
+    <tr><td>full-corpus gap, <code>sys_a</code> − <code>sys_b</code></td><td><strong>+0.0357</strong></td></tr>
+    <tr><td><code>sys_a</code> test accuracy under <code>random</code></td><td>mean 0.7011, <strong>sd 0.1300</strong>, range [0.364, 1.000]</td></tr>
+    <tr><td>P(test reproduces the corpus ordering of the top two)</td><td><strong>0.487</strong></td></tr>
+    <tr><td>leader by seed</td><td><code>sys_a</code> 186 · <code>sys_b</code> 128 · <code>sys_c</code> 8 · tie 78</td></tr>
+  </table>
+
+  <p>The split seed is worth <strong>3.6×</strong> the effect the benchmark measures. The mean over
+  seeds recovers the corpus number (0.7011 vs 0.6964), so this is variance, not bias. Hence two
+  identities in the manifest — <code>content_id</code> (are these the same examples?) and
+  <code>eval_id</code> (are two scores comparable?) — and hence a pure re-split is a
+  <code>major</code> bump.</p>
+
+  <p>A claim the measurements killed: an early draft credited the <code>adversarial</code> strategy
+  with a better test split, citing its 65.0% agreement rate against <code>random</code>'s 48.7%. But
+  <code>adversarial</code> evicts duplicate clusters from <code>dev</code>/<code>test</code>, and
+  both systems score higher on duplicated examples (0.750/0.700) than on singletons
+  (0.667/0.639). Its test set measures a sub-population whose true gap is nearly three times larger
+  (+0.1029 vs +0.0357) — a <em>different estimand</em>, not a better estimate of the same one. The
+  tool records <code>split_spec</code> and does not rank the strategies. See
+  <a href="releases.html">Releases</a>.</p>
+
   <h2>Reproduce</h2>
 <pre><code>python3 -m pytest -q tests/test_dedup.py      # 99 tests
 python3 -m pytest -q tests/test_leakage.py    # 111 tests
@@ -206,6 +237,12 @@ python3 -m pytest -q tests/test_labels.py     # 144 tests
 python3 -m pytest -q tests/test_splits.py     # 723 tests
 python3 -m pytest -q tests/test_difficulty.py # 163 tests
 python3 -m pytest -q tests/test_statistics.py # 115 tests
+python3 -m pytest -q tests/test_release.py    # 72 tests
+
+python3 scripts/split_identity_experiment.py --seeds 400   # the table above
+
+PYTHONPATH=src python3 -m eval_dataset_forge verify-release \
+    --release datasets/releases/qa_toy_v0.1.0        # ten checks, exit 0
 
 PYTHONPATH=src python3 -m eval_dataset_forge build-splits \
     --dataset datasets/fixtures/qa_toy/examples.jsonl \

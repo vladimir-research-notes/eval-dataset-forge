@@ -49,11 +49,29 @@ PYTHONPATH=src python3 -m eval_dataset_forge audit \
   --dataset datasets/fixtures/qa_toy/examples.jsonl \
   --out results/audits/qa_toy/
 
-# Build a versioned release with stratified splits.
+# Construct splits and verify them against the leakage checks.
 PYTHONPATH=src python3 -m eval_dataset_forge build-splits \
   --dataset datasets/fixtures/qa_toy/examples.jsonl \
   --strategy stratified \
-  --out datasets/releases/qa_toy_v0.1/
+  --out results/processed/qa_toy_splits/
+
+# Build a versioned, hashed, audited release. --version auto derives the bump from
+# --previous: anything visible to dev/test forces a major, because old scores do not
+# carry over. --created-at makes manifest.json byte-identical across rebuilds.
+PYTHONPATH=src python3 -m eval_dataset_forge release \
+  --dataset datasets/fixtures/qa_toy/examples.jsonl \
+  --dataset-id qa_toy --strategy adversarial --seed 0 --quarantine-blocking \
+  --created-at 2026-07-09T00:00:00+00:00 \
+  --license-notes "Synthetic fixture data, CC0-1.0. No real personal, clinical, or patient data." \
+  --version 0.1.0 --out datasets/releases/qa_toy_v0.1.0
+
+# Check a release against its own manifest, without rebuilding it. Exits 1 on any
+# disagreement. Integrity, not authenticity: manifest.json is not self-hashed.
+PYTHONPATH=src python3 -m eval_dataset_forge verify-release \
+  --release datasets/releases/qa_toy_v0.1.0
+
+# The measurement behind eval_id: same content, different split seed, different leaderboard.
+python3 scripts/split_identity_experiment.py --seeds 400
 
 # Score, bucket, and calibrate example difficulty (exits 1 with --fail-on-uncalibrated).
 PYTHONPATH=src python3 -m eval_dataset_forge difficulty \
@@ -86,6 +104,15 @@ Randomized steps (split construction, bootstrap resampling, permutation tests)
 take an explicit `--seed`. Given the same fixtures and seed, audits, splits, and
 statistics are byte-reproducible. Content hashes in each release `manifest.json`
 let you verify that a rebuilt release matches a prior one.
+
+A release separates **identity** from **provenance**, and the separation is what makes
+"byte-reproducible" true rather than nearly true. `created_at` is the only value that varies
+between two builds of the same data, and it lives in `manifest.json` — the one artifact nothing
+hashes — so two builds at different clocks differ in that file and in **no other**. Pass
+`--created-at` to make even that byte-identical. This holds across processes and
+`PYTHONHASHSEED` values, which `tests/test_release.py` checks by building twice in separate
+interpreters: within a single process a `set[str]` iterates in a fixed order, so a manifest field
+built from one looks deterministic and stops being so on the next machine.
 
 Two determinism details are load-bearing rather than incidental. The statistics
 stage draws **one** resample-index matrix per resampling unit and shares it across

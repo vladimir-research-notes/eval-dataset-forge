@@ -414,12 +414,61 @@ Reproduce:
 python3 -m pytest -q tests/test_statistics.py # 115 tests
 ```
 
+### Release identity (Milestone 10)
+
+A release is a claim that two scores are comparable. The question this stage had to settle
+before deciding what a manifest records: **is a dataset's content enough to identify it?**
+Full method: [`RELEASES.md`](RELEASES.md).
+
+**It is not.** Hold the corpus fixed, hold each system's per-example score vector fixed, and
+vary only the split seed (pooled corpus: 56 examples, 44 blocks, 3 simulated systems, 400 seeds
+per strategy):
+
+| quantity | value |
+|---|---|
+| distinct `content_id` over all 400 seeds × 3 strategies | **1** |
+| full-corpus accuracy, `sys_a` / `sys_b` | 0.6964 / 0.6607 |
+| **the gap the benchmark exists to resolve** | **+0.0357** |
+| `sys_a` test accuracy under `random` | mean 0.7011, **sd 0.1300**, range **[0.364, 1.000]** |
+| P(test split reproduces the corpus ordering of the top two) | **0.487** |
+| leader by seed, `random` | `sys_a` 186 · `sys_b` 128 · `sys_c` 8 · tie 78 |
+
+The split seed moves the headline number by **3.6× the effect it is meant to resolve**, and which
+system "wins" is decided by the seed. The mean over seeds recovers the corpus number, so this is
+variance, not bias. The consequence for this milestone is structural: a release identified only by
+a content hash would call all 400 of those releases the same. So the manifest carries `content_id`
+(*"the same examples?"*) **and** `eval_id` (*"comparable scores?"*), and the version bump keys on
+the second — a pure re-split at unchanged content is a **major** bump.
+
+A tempting misreading, refuted in `RELEASES.md` §2: `adversarial` agrees with the corpus ordering
+65.0% of the time to `random`'s 48.7% — not because it estimates the same quantity better, but
+because it estimates a **different** one. It evicts duplicate clusters from `dev`/`test`, and both
+systems score higher on duplicated examples (0.750/0.700) than on singletons (0.667/0.639), so its
+test set carries a larger true gap (+0.103 vs +0.036) that is correspondingly easier to detect.
+
+Verified end to end: the committed demo release
+[`datasets/releases/qa_toy_v0.1.0`](../datasets/releases/qa_toy_v0.1.0) passes all ten
+`verify-release` checks; the command printed in its own `REPRODUCE.md` regenerates it
+byte-for-byte; two builds at different clocks differ in `manifest.json` and nothing else; and a
+single flipped byte in `examples.jsonl` is caught by three independent checks. The manifest
+records `block_count`/`block_size_histogram` and **no** `effective_n` — that number needs an ICC,
+which needs system scores, which a dataset does not have. This answers the question Milestone 9
+left open.
+
+Reproduce:
+
+```bash
+python3 scripts/split_identity_experiment.py --seeds 400
+python3 -m pytest -q tests/test_release.py     # 72 tests
+PYTHONPATH=src python3 -m eval_dataset_forge verify-release \
+  --release datasets/releases/qa_toy_v0.1.0
+```
+
 ## What will be reported here
 
 - Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII
   flags.
 - Difficulty distributions per fixture and per split.
-- At least one built release (`datasets/releases/…`) with manifest + hashes.
 - At least one generated dataset card.
 
 ## Reproduce

@@ -1,0 +1,211 @@
+{
+  "audit_id": "audit-a271768e2254cd69",
+  "dataset_id": "qa_toy",
+  "version": "0.1.0",
+  "exact_duplicates": [
+    {
+      "kind": "exact",
+      "example_ids": [
+        "qa-001",
+        "qa-002"
+      ],
+      "similarity": null,
+      "method": "sha256(input+expected_output)"
+    }
+  ],
+  "near_duplicates": [
+    {
+      "kind": "near",
+      "example_ids": [
+        "qa-003",
+        "qa-004",
+        "qa-012"
+      ],
+      "similarity": 0.3427,
+      "method": "tfidf(word_1gram)@0.3"
+    }
+  ],
+  "leakage_flags": [
+    {
+      "kind": "answer_in_prompt",
+      "example_ids": [
+        "qa-007"
+      ],
+      "score": 1.0,
+      "evidence": "expected_output is 100% contained in the prompt at n=1; longest shared token span: 'berlin'"
+    }
+  ],
+  "label_warnings": [
+    {
+      "kind": "missing",
+      "example_id": "qa-010",
+      "detail": "expected_output is an empty string — no gold answer to score against"
+    },
+    {
+      "kind": "conflicting",
+      "example_id": "qa-011",
+      "detail": "annotators disagree (a1='1945', a2='1944'); no majority among 2"
+    },
+    {
+      "kind": "ambiguous",
+      "example_id": "qa-008",
+      "detail": "declared ambiguous by difficulty_tags ['ambiguous']; prompt is 4 tokens with no wh-word, so its referents are unbound: 'Name a primary color.'; prompt asks for one instance of a category ('Name a') while the gold answer records a single response"
+    },
+    {
+      "kind": "ambiguous",
+      "example_id": "qa-009",
+      "detail": "declared ambiguous by difficulty_tags ['ambiguous']; prompt is 3 tokens with no wh-word, so its referents are unbound: 'Is it good?'"
+    },
+    {
+      "kind": "needs_adjudication",
+      "example_id": "qa-010",
+      "detail": "1 issue(s) (missing) with no resolution the audit can propose"
+    },
+    {
+      "kind": "needs_adjudication",
+      "example_id": "qa-011",
+      "detail": "1 issue(s) (conflicting) with no resolution the audit can propose"
+    },
+    {
+      "kind": "needs_adjudication",
+      "example_id": "qa-008",
+      "detail": "1 issue(s) (ambiguous) with no resolution the audit can propose"
+    },
+    {
+      "kind": "needs_adjudication",
+      "example_id": "qa-009",
+      "detail": "1 issue(s) (ambiguous) with no resolution the audit can propose"
+    }
+  ],
+  "pii_flags": [],
+  "difficulty_distribution": {
+    "easy": 4,
+    "medium": 5,
+    "hard": 5
+  },
+  "split_statistics": {
+    "counts": {
+      "examples": 14,
+      "train": 11,
+      "dev": 1,
+      "test": 2,
+      "blocks": 11,
+      "grouped_blocks": 2,
+      "quarantined": 4,
+      "duplicate_examples": 5,
+      "residual_overlap": 0,
+      "residual_sources": 0,
+      "eval_duplicates": 0
+    },
+    "spec": {
+      "strategy": "adversarial",
+      "seed": 0,
+      "ratios": {
+        "train": 0.7,
+        "dev": 0.1,
+        "test": 0.2
+      },
+      "group_key": "duplicate_cluster",
+      "constraints": {
+        "stratify_by": [
+          "task_family"
+        ],
+        "eval_splits": [
+          "dev",
+          "test"
+        ],
+        "quarantined": [
+          "qa-010",
+          "qa-011",
+          "qa-008",
+          "qa-009"
+        ],
+        "near_method": "tfidf"
+      }
+    },
+    "achieved_ratios": {
+      "train": 0.7857,
+      "dev": 0.0714,
+      "test": 0.1429
+    },
+    "distributions": {
+      "task_family": {
+        "dev": {
+          "qa": 1
+        },
+        "test": {
+          "qa": 2
+        },
+        "train": {
+          "qa": 11
+        }
+      },
+      "difficulty": {
+        "dev": {
+          "hard": 1
+        },
+        "test": {
+          "easy": 1,
+          "medium": 1
+        },
+        "train": {
+          "easy": 7,
+          "medium": 2,
+          "unlabelled": 2
+        }
+      }
+    },
+    "blocks": [
+      {
+        "key": "qa-001",
+        "example_ids": [
+          "qa-001",
+          "qa-002"
+        ],
+        "reason": "duplicate",
+        "duplicate": true
+      },
+      {
+        "key": "qa-003",
+        "example_ids": [
+          "qa-003",
+          "qa-004",
+          "qa-012"
+        ],
+        "reason": "duplicate+source",
+        "duplicate": true
+      }
+    ],
+    "quarantined": [
+      "qa-010",
+      "qa-011",
+      "qa-008",
+      "qa-009"
+    ],
+    "residual_overlap": [],
+    "residual_sources": {},
+    "eval_duplicates": [],
+    "warnings": [
+      "test contains no difficulty='hard' example (1 in the corpus); the split cannot measure it",
+      "test contains no difficulty='unlabelled' example (2 in the corpus); the split cannot measure it"
+    ],
+    "dependence": {
+      "block_count": 11,
+      "block_size_histogram": {
+        "1": 9,
+        "2": 1,
+        "3": 1
+      },
+      "duplicate_block_count": 2,
+      "near_method": "tfidf",
+      "note": "effective_n is a property of a scored comparison, not of a dataset: it needs an intraclass correlation, which needs system scores. Resample these blocks, not the rows — see docs/STATISTICS.md."
+    }
+  },
+  "recommendations": [
+    "1 example(s) contain their gold answer in the prompt; they measure copying, not the task.",
+    "1 exact/normalized duplicate cluster(s) remain in the release; `--drop exact,normalized` removes the redundant members and records each removal in manifest.excluded.",
+    "4 example(s) still lack a settled gold answer. They are quarantined in train, not deleted, so an adjudication pass can restore them to the evaluation splits without rebuilding the corpus.",
+    "the difficulty heuristic's ranking is not distinguishable from a random ranking of the declared tags on this corpus; do not read its buckets as difficulty labels (docs/DIFFICULTY.md).",
+    "14 examples form 11 independent block(s); a bootstrap that resamples rows will under-cover. Use `evalforge stats --resample-unit block` (the default)."
+  ]
+}
