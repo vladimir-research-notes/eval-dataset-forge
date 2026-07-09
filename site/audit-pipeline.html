@@ -30,7 +30,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status pending">assembled in Milestone 12</span></p>
+  <p><span class="status done">M12</span></p>
   <h1>The audit pipeline</h1>
   <p class="lede">A linear sequence of separable, independently tested stages.
   Validated examples in; typed findings, distribution summaries, and prioritized
@@ -102,8 +102,33 @@ evalforge smoke --out results/reports/smoke_audit.md   # all fixtures at once</c
   <p>Milestone 10 <a href="releases.html">publishes</a> the audit beside the data it describes, and
   Milestone 11 renders it for a human as a <a href="dataset-card.html">dataset card</a> — generated
   from <code>manifest.json</code> and <code>audit.json</code>, recomputing nothing, so a card and
-  the evidence in the same directory cannot disagree. The human-readable
-  <code>audit.md</code> and the end-to-end smoke audit are assembled in Milestone 12.</p>
+  the evidence in the same directory cannot disagree.</p>
+
+  <h2>Running it <span class="status done">M12</span></h2>
+<pre><code>PYTHONPATH=src python3 -m eval_dataset_forge audit \
+    --dataset datasets/fixtures/qa_toy/examples.jsonl \
+    --out results/audits/qa_toy/          # writes audit.json + audit.md</code></pre>
+  <p><code>evalforge audit</code> assembles every stage above into one
+  <code>AuditResult</code> and renders <code>audit.md</code> from it — a pure view, reading no
+  examples and no manifest, so the report cannot describe a defect the JSON beside it does not.
+  The same <code>assemble_audit</code> serves the release builder; the two differ only in
+  <code>split_statistics.source</code> (<code>constructed</code> vs <code>observed</code>), so a
+  reader can tell a <code>residual_overlap: 0</code> earned by the adversarial strategy from one a
+  curator handed us.</p>
+
+  <div class="callout warn"><strong>An audit describes the split it is given, and never builds
+  one.</strong> Re-splitting inside an audit would make the report describe a dataset that exists
+  nowhere on disk. The consequence: on an <em>unsplit</em> corpus, four of the pipeline's signals —
+  cross-split duplicate overlap, cross-split source reuse, n-gram containment against the
+  <code>train</code> reference, and the <code>dev</code>/<code>test</code> duplicate count — return
+  zero <em>by vacuity</em>, not by cleanliness. The audit names all four in a warning, in a
+  recommendation, and in <code>audit.md</code>. A check that could not run is not a check that
+  passed.</div>
+
+  <p><code>evalforge smoke</code> runs the whole pipeline over every fixture and the pooled corpus,
+  then <em>scores</em> the findings against each fixture's planted ground truth — beside a
+  flag-everything control that shows what an uninformative answer scores under the same rule. See
+  <a href="results.html">Results</a>.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

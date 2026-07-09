@@ -1,30 +1,44 @@
 # Results
 
-> Status: pending Milestone 12 (Smoke audit & results). This file is populated
-> when the full audit pipeline runs over the committed fixtures. It currently
-> describes what will be reported.
-
 The smoke audit (`evalforge smoke --out results/reports/smoke_audit.md`) runs the
 entire pipeline over every fixture dataset, fully offline, and this document
 summarizes the outcome. Because the fixtures are hand-authored with deliberate
-defects, the audit's job is to **rediscover the planted defects** — that is the
-demonstration that the checks work.
+defects, the audit's job is to **rediscover the planted defects**.
 
 The five fixtures landed in Milestone 2 (`datasets/fixtures/`, 56 examples). Each
 carries a machine-readable `defects.yaml` recording its planted defects as ground
-truth, so the audit can be scored for **recall** here (found ÷ planted, excluding
-defects marked `auto_detectable: false`) rather than reported as a bare count. The
-fixtures already validate structurally (`python3 scripts/validate_fixtures.py`).
+truth, so every stage below is scored against them rather than reported as a bare
+count. The fixtures also validate structurally
+(`python3 scripts/validate_fixtures.py`).
 
-## Expected findings per fixture (to be confirmed by the run)
+> **Every number on this page is measured in sample.** These fixtures' defects were
+> planted by the same repository that wrote the detectors, and the near-duplicate
+> and answer-in-prompt thresholds were *selected* by sweeps over these same
+> fixtures (Milestones 4 and 5). Recall here is a resubstitution estimate: it says
+> the pipeline finds what it was built to find, on the data it was built against.
+> It does not estimate performance on a corpus this repository has not seen. There
+> is no held-out corpus, and saying so is cheaper than implying otherwise by
+> silence.
 
-| fixture | planted defects the audit should surface |
-|---------|-------------------------------------------|
-| `qa_toy` | duplicate + paraphrased questions, mislabeled answers, ambiguous questions, train/test overlap |
-| `agent_tasks_toy` | near-duplicate tasks, leaked solutions, ambiguous scoring |
-| `retrieval_toy` | duplicated docs, query–document leakage, incomplete relevance labels |
-| `bio_toy` | entity-label conflicts, evidence-label mismatches |
-| `safety_toy` | over-/under-refusal and ambiguous-boundary label conflicts |
+## The headline, and why it is not the recall
+
+**40 of 40 detectable planted defects are recovered, 0 missed, 5 unexplained
+assertions across 56 examples.** That number, alone, is worthless — and the smoke
+audit proves it by scoring a detector that flags *everything* under the identical
+rule:
+
+| detector | recall | precision (`dedup.exact`) | precision (`labels.missing`) |
+|---|---|---|---|
+| the pipeline | **1.000** | 1.000 | 1.000 |
+| flag every example and every pair | **1.000** | 0.014 | 0.071 |
+
+Recall is maximized by asserting everything, so it bounds what a detector *misses*
+and says nothing about what it *invents*. No matching rule repairs this: subset
+matching, exact-set matching, and the pairwise rule all award the degenerate
+detector full recall, because full recall is what it has. Milestone 12 therefore
+prints a precision beside every recall, and ships the degenerate control inside the
+report so the reader can see what an uninformative answer scores. Details:
+[Milestone 12](#smoke-audit--scoring-the-scorer-milestone-12), below.
 
 ## Measured so far
 
@@ -519,11 +533,171 @@ PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \
   --release datasets/releases/qa_toy_v0.1.0 --fail-on-incomplete   # exit 0: 4/4 sections
 ```
 
-## What will be reported here
+### Smoke audit — scoring the scorer (Milestone 12)
 
-- Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII
-  flags.
-- Difficulty distributions per fixture and per split.
+Every stage above scored itself against `defects.yaml` by hand. This milestone runs
+the whole pipeline over every fixture and does that scoring in code — which forced
+the question the hand-written tables never had to answer: **what is a correct
+scoring rule for a defect detector?**
+
+**Recall is not one.** A detector that flags everything finds every planted defect.
+Measured, on the same scorer, over the same corpus:
+
+| | pipeline | flag-everything control |
+|---|---|---|
+| recall over 40 detectable planted defects | **1.000** | **1.000** |
+| planted defects missed | 0 | 0 |
+| precision, `dedup.exact` | 1.000 | 0.014 |
+| precision, `dedup.near` | 0.571 | 0.017 |
+| precision, `leakage.train_test_overlap` | 0.727 | 0.031 |
+| precision, `labels.missing` | 1.000 | 0.071 |
+| precision, `labels.ambiguous` | 0.833 | 0.089 |
+
+The control is in the shipped report, not in a footnote: `evalforge smoke` scores it
+every run. Channel by channel the pipeline's precision is **9× to 190×** the
+control's, and the gap is widest on the pair channels for a structural reason — a
+flag-everything detector must assert all `C(n,2)` pairs but only `n` examples, so
+its pair precision falls as `1/n²` and its example precision only as `1/n`.
+
+**A cluster is a conjunction of assertions, not one assertion.** Duplicate findings
+are clusters. Scoring a cluster as a single prediction forces a bad choice: count it
+correct if it *contains* a planted pair, and one 14-member cluster is "correct";
+count it correct only if it *equals* a planted pair, and a true 3-member cluster
+covering a planted pair is "wrong". A cluster of size *k* asserts all *k(k−1)/2* of
+its pairs, so that is the unit both recall and precision are counted on.
+
+This is not bookkeeping. On `qa_toy` the near stage emits one cluster,
+`{qa-003, qa-004, qa-012}`. It thereby asserts `qa-004 ≈ qa-012` — a pair nothing
+plants, and which no cluster-level view would ever show. Pair decomposition surfaces
+it as the channel's one unexplained assertion and drops its precision to 0.571.
+
+**The denominator is chosen by the authors of the detectors.** 45 defects are
+planted; 40 enter the recall denominator. The 5 that do not are listed, by id, with
+which of *two different* reasons excluded them:
+
+| fixture | kind | examples | reason |
+|---|---|---|---|
+| `qa_toy` | mislabeled | `qa-006` | `not-auto-detectable` (the fixture's declaration) |
+| `bio_toy` | mislabeled | `bio-009` | `not-auto-detectable` |
+| `safety_toy` | mislabeled | `saf-006` | `not-auto-detectable` |
+| `retrieval_toy` | paraphrased_documents | `ret-006/d13`, `ret-006/d14` | `no-channel` (this project has no detector) |
+| `retrieval_toy` | over_specific_query | `ret-005` | negative control — must **not** be flagged |
+
+Collapsing the two reasons would let a missed defect be reclassified as an
+out-of-scope one. Recall over *every* planted defect, refusing all exclusions, is
+**0.909**, and the report prints it beside the 1.000. A ground-truth kind this
+project has not wired to a channel raises `ValueError` rather than being skipped: a
+planted defect must not leave the denominator by typo.
+
+**Corroboration across channels is not a false positive.** Of the assertions absent
+from a channel's own ground truth, most are recorded elsewhere in it. The n-gram
+check flags `qa-002` — planted as half of an `exact_duplicates` pair. The retrieval
+check flags `ret-001`/`ret-002` — planted as a `duplicate_documents` pair. The
+scorer projects ground truth into the channel's unit and counts these as *explained*.
+The projection is unit-preserving, which is what stops it from becoming a blanket
+pardon: `qa-004` and `qa-012` are each planted, and their *pairing* is not, so it
+stays unexplained.
+
+Across the corpus exactly **five** assertions are unexplained, and all five were
+already known:
+
+| fixture | channel | assertion | status |
+|---|---|---|---|
+| `qa_toy` | `dedup.near` | `qa-004 + qa-012` | implied by a 3-member cluster; also a planted duplicate *source* pair |
+| `qa_toy` | `leakage.train_test_overlap` | `qa-004 + qa-012` | the same cluster, echoed by the channel that inherits it |
+| `agent_tasks_toy` | `dedup.near` | `agent-003 + agent-004` | disputed since Milestone 5 — arguably a true near-duplicate |
+| `agent_tasks_toy` | `leakage.train_test_overlap` | `agent-003 + agent-004` | the same, echoed |
+| `retrieval_toy` | `labels.ambiguous` | `ret-005` | **new**: `ret-005` declares `difficulty_tags: [hard, ambiguous]`, and the ground truth files it under `relevance_issues/over_specific_query` |
+
+The last one is a gap in the ground truth, not a detector error: the ambiguity check
+is an exact reading of a declaration the example carries. Left unresolved and
+[flagged for human review](review_notes/12-smoke-audit-human-review.md) rather than
+settled by editing `defects.yaml` — the same discipline Milestones 4 and 5 applied to
+their disputed pairs.
+
+**The scorer reproduces every number Milestones 4–6 computed by hand.** `dedup.exact`
+4/4, `dedup.near` 4/5, `duplicate_sources` 2/2, `train_test_overlap` 8/9,
+`answer_in_prompt` 2/2, `retrieval_contamination` 1/1 — all recomputed from the
+fixtures by `eval_dataset_forge.scoring` and pinned by a test. The one defect its own
+channel cannot reach, `ret-001`/`ret-002`, is recovered by the passage-level retrieval
+channel, so **0** planted defects are invisible to the whole pipeline.
+
+Per-fixture, at default settings:
+
+| fixture | examples | blocks | duplicate clusters | leakage findings | label warnings | PII |
+|---|---|---|---|---|---|---|
+| `qa_toy` | 14 | 11 | 2 | 4 | 8 | 0 |
+| `agent_tasks_toy` | 12 | 9 | 3 | 5 | 6 | 0 |
+| `retrieval_toy` | 10 | 9 | 0 | 2 | 4 | 0 |
+| `bio_toy` | 10 | 8 | 2 | 3 | 6 | 0 |
+| `safety_toy` | 10 | 8 | 2 | 3 | 7 | 0 |
+| **pooled** | **56** | **44** | 10 | 18 | 31 | 0 |
+
+The pooled corpus is audited and **not scored**: pooling lets the ladder compare
+examples across fixtures, and the per-fixture ground truth says nothing about a
+cross-fixture pair — scoring it would measure the ground truth's silence. Its 44
+independent blocks are the sample size Milestone 9's bootstrap resamples.
+
+**Running it anyway found something.** The pooled audit reports 10 duplicate clusters
+against the per-fixture sum of 9, and the extra one is not cross-fixture. It is
+`{saf-004, saf-005, saf-007}` — entirely inside `safety_toy`, which on its own reports
+no such cluster:
+
+| | `safety_toy` alone (n=10) | pooled corpus (n=56) |
+|---|---|---|
+| `sim(saf-004, saf-007)` | 0.2866 | **0.3438** |
+| `sim(saf-001, saf-003)` | 0.4319 | 0.5071 |
+| near-duplicate threshold | 0.30 | 0.30 |
+
+Neither prompt changed. TF-IDF's inverse-document-frequency term is computed over the
+document *collection*, so the boilerplate the two safety prompts share
+("SYNTHETIC…PLACEHOLDER", "no real content") is common inside `safety_toy` and rare
+against the wider pooled vocabulary — and rarer means heavier. The pair crosses the
+threshold because of what else is in the corpus.
+
+So **a near-duplicate verdict is not a property of a pair; it is a property of a pair
+and its corpus.** Two consequences worth stating plainly:
+
+- **Deduplication is not composable.** Auditing shards separately and unioning the
+  findings is not auditing the union.
+- **Appending unrelated examples can create duplicate clusters among examples that did
+  not change.** The adversarial split builder derives its blocks from duplicate clusters,
+  and `eval_id` folds the split assignment in — so appending unrelated data can move the
+  split of an untouched example, and change `eval_id`. That is a Milestone 10 identity
+  claim reached from a Milestone 4 implementation detail; it is
+  [flagged for review](review_notes/12-smoke-audit-human-review.md) and deserves its own
+  experiment rather than a paragraph here.
+
+`test_a_near_duplicate_verdict_is_a_property_of_the_corpus_not_of_the_pair` pins the
+measurement. Whether the pure-Python Jaccard fallback — which has no IDF term — is immune
+is **not yet measured**; if it is, then `scikit-learn` changes the *semantics* of a
+duplicate report, not only its speed.
+
+**Two smaller results.** An audit describes the split it is *given* and never builds
+one, so `evalforge audit` on an unsplit corpus finds that four checks — cross-split
+overlap, cross-split source reuse, n-gram containment against the `train` reference,
+and the `dev`/`test` duplicate count — return zero *by vacuity*. The audit says so, in
+a warning, in a recommendation naming the four, and in `audit.md`. A check that could
+not run is not a check that passed.
+
+And the release bundle is finally complete: `audit.md` — listed in `docs/PLAN.md` §5D
+since Milestone 0 and absent from every release until now — ships beside `audit.json`,
+rendered from it and from nothing else. Adding it to the committed demo release is a
+**patch** bump by Milestone 10's own machinery (`content_id` and `eval_id` unchanged,
+"packaging only: hashes"), so scores measured on the old bundle still stand; the
+release was rebuilt in place at v0.1.0 rather than re-versioned, and a test pins the
+reasoning.
+
+Reproduce:
+
+```bash
+PYTHONPATH=src python3 -m eval_dataset_forge smoke \
+  --out results/reports/smoke_audit.md \
+  --fail-on-missed-defect --fail-on-control-violation      # exit 0
+PYTHONPATH=src python3 -m eval_dataset_forge audit \
+  --dataset datasets/fixtures/qa_toy/examples.jsonl --out results/audits/qa_toy/
+python3 -m pytest -q tests/test_audit.py       # 47 tests
+```
 
 ## Reproduce
 

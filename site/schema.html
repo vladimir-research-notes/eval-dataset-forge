@@ -72,7 +72,7 @@
 <pre><code>datasets/releases/&lt;dataset_id&gt;_v&lt;major.minor.patch&gt;/
   examples.jsonl        the data (validated)
   manifest.json         DatasetManifest: hashes, splits, counts, audit summary, identities
-  audit.json / audit.md AuditResult + human-readable report   (audit.md: M12)
+  audit.json / audit.md AuditResult + human-readable report (audit.md is a view of audit.json)
   dataset_card.md       DatasetCard rendered from manifest.json + audit.json
   splits/{train,dev,test}.jsonl
   REPRODUCE.md          exact rebuild commands</code></pre>

@@ -1136,9 +1136,6 @@ def test_format_report_renders_nan_as_not_available(by_fixture):
 
 
 def test_difficulty_is_a_real_subcommand_not_a_placeholder():
-    from eval_dataset_forge.cli import _PENDING
-
-    assert "difficulty" not in _PENDING
     args = build_parser().parse_args(["difficulty", "--dataset", "x.jsonl"])
     assert args.bucketing == "quantile"
     assert args.seed == 0

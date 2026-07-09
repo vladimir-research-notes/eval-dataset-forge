@@ -54,12 +54,11 @@ anyone able to rewrite the data can rewrite the digests that describe it.
 
 None. Every source example is in this release.
 
-## Not in this bundle yet
+## Derived artifacts
 
-- `audit.md`, the human-readable rendering of `audit.json` — Milestone 12.
-
-`dataset_card.md` is present, and is a rendering of `manifest.json` + `audit.json`. Check that
-this tool version still reproduces it:
+`audit.md` is a rendering of `audit.json`, and `dataset_card.md` a rendering of `manifest.json`
++ `audit.json`. Neither recomputes anything, so neither can disagree with the evidence it reads.
+Check that this tool version still reproduces the card:
 
 ```bash
 PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \

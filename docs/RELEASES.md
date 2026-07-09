@@ -150,13 +150,15 @@ datasets/releases/<dataset_id>_v<version>/
   examples.jsonl     # the released data, in source order
   manifest.json      # DatasetManifest — the only artifact nothing hashes
   audit.json         # AuditResult, computed over the data that shipped
+  audit.md           # the audit rendered for a human, from audit.json alone
   dataset_card.md    # DatasetCard rendered from manifest.json + audit.json
   REPRODUCE.md       # the command, the identities, and the gaps
   splits/{train,dev,test}.jsonl
 ```
 
-`audit.md` (Milestone 12) is not written yet. `REPRODUCE.md` says so in every release rather
-than letting the reader assume the bundle is complete.
+`audit.md` (Milestone 12) is a *view* of `audit.json`: it reads no examples, no manifest, and no
+filesystem, so it cannot report a defect the JSON beside it does not. Unlike `dataset_card.md` its
+bytes depend on no manifest, so the builder renders it in the first pass.
 
 `dataset_card.md` (Milestone 11) is hashed like any other artifact, which forces the builder to
 assemble the manifest **twice**: once so the card has a manifest to render from, once more with

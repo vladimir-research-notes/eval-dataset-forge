@@ -198,7 +198,7 @@ datasets/releases/<dataset_id>_v<version>/
   examples.jsonl        # the data (validated), in source order
   manifest.json         # DatasetManifest — the only artifact nothing hashes
   audit.json            # AuditResult, computed over the data that shipped
-  audit.md              # human-readable audit report          (Milestone 12 — not written yet)
+  audit.md              # human-readable audit report, a pure view of audit.json
   dataset_card.md       # DatasetCard rendered to Markdown, from manifest.json + audit.json
   splits/
     train.jsonl

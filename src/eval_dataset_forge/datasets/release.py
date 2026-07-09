@@ -31,9 +31,15 @@ manifest with the card's bytes included. The two manifests differ only in ``hash
 :func:`~eval_dataset_forge.reports.dataset_card.build_card` does not read — nor ``created_at``,
 for the reason ``REPRODUCE.md`` carries no timestamp either.
 
-What this module still does *not* write: the human-readable ``audit.md`` (Milestone 12). The
-layout in ``docs/PLAN.md`` §5D lists it; a release built today is missing it, and
-``REPRODUCE.md`` says so rather than pretending the bundle is complete.
+**5. The evidence bundle is complete.** Since Milestone 12 a release also carries ``audit.md``,
+the human-readable rendering of ``audit.json`` that ``docs/PLAN.md`` §5D has always listed. It is
+a hashed artifact like any other, and like the card it is a pure *view* of the audit — rendered
+from the ``AuditResult`` alone, so it cannot describe a defect the JSON beside it does not.
+
+The audit itself is assembled by :func:`eval_dataset_forge.audit.assemble_audit`, which
+``evalforge audit`` also calls. One assembly, two callers: a release's ``audit.json`` and a raw
+file's differ in ``split_statistics["source"]`` (``constructed`` vs ``observed``) and in nothing
+else.
 """
 
 from __future__ import annotations
@@ -43,6 +49,12 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from eval_dataset_forge import SCHEMA_VERSION, __version__
+from eval_dataset_forge.audit import (
+    DEFAULT_DIFFICULTY_RESAMPLES,
+    SplitFacts,
+    assemble_audit,
+    dependence,
+)
 from eval_dataset_forge.datasets import loader
 from eval_dataset_forge.datasets.manifest import (
     AUDIT_FILE,
@@ -66,6 +78,8 @@ from eval_dataset_forge.dedup import DedupReport, find_duplicates
 from eval_dataset_forge.difficulty import DifficultyReport, score_dataset
 from eval_dataset_forge.labels import LabelAuditReport, audit_labels
 from eval_dataset_forge.leakage import LeakageReport, find_leakage
+from eval_dataset_forge.reports.audit_report import AUDIT_MD_FILE
+from eval_dataset_forge.reports.audit_report import render_markdown as render_audit_markdown
 from eval_dataset_forge.reports.dataset_card import CARD_FILE, build_card, render_markdown
 from eval_dataset_forge.schemas import (
     AuditResult,
@@ -82,9 +96,7 @@ from eval_dataset_forge.splits import (
     SplitReport,
     apply_splits,
     build_splits,
-    duplicate_blocks,
 )
-from eval_dataset_forge.validation.pii import scan_examples
 
 # What ``--drop`` accepts. Ordered by how much a curator should have to justify it: an exact
 # duplicate is redundant by definition, a near duplicate only by a threshold.
@@ -99,12 +111,6 @@ _DROP_TO_KIND = {
     DROP_NORMALIZED: DedupKind.NORMALIZED,
     DROP_NEAR: DedupKind.NEAR,
 }
-
-# Difficulty calibration runs a permutation test. 2000 resamples put the Monte-Carlo standard
-# error on a p near 0.05 at ~0.005 — small against the 0.05 threshold, and cheap. The
-# ``difficulty`` CLI defaults to 10000 because it is the command whose whole output is that
-# p-value; here it is one line of an audit.
-DEFAULT_DIFFICULTY_RESAMPLES = 2_000
 
 # Printed into REPRODUCE.md when a caller builds a release through the library rather than
 # the CLI, which is the only path that knows the real command line.
@@ -244,119 +250,6 @@ def plan_exclusions(
 # --------------------------------------------------------------------------- #
 
 
-def _dependence(examples: Sequence[DatasetExample], dedup: DedupReport) -> dict[str, object]:
-    """The block structure a bootstrap needs, and no effective sample size.
-
-    ``effective_n`` is deliberately absent: it equals ``n / (1 + (m̄ - 1)·ICC)``, and the
-    ICC is a property of a *system's scores* on the blocks, not of the blocks. A dataset
-    that quoted one would be quoting an assumed ICC. Milestone 9 measures it per system;
-    this records what that measurement needs.
-
-    ``blocks_by_split`` counts the blocks each split *touches*, because a corpus-wide block
-    count does not bound a claim about a test score — the test split's own block count does,
-    and a dataset card that printed only the corpus number would let a reader spend the wrong
-    sample size (Milestone 11). A block whose members straddle a boundary is counted in every
-    split it reaches, so the per-split counts sum to at least ``block_count``;
-    ``straddling_block_count`` says how far. Under the adversarial strategy it is zero, and
-    a non-zero value is the same defect ``residual_overlap`` reports, counted differently.
-    """
-    blocks = duplicate_blocks(examples, dedup)
-    split_of = {example.example_id: str(example.split) for example in examples}
-    histogram: dict[str, int] = {}
-    blocks_by_split: dict[str, int] = {}
-    straddling = 0
-    for block in blocks:
-        key = str(block.size)
-        histogram[key] = histogram.get(key, 0) + 1
-        touched = {split_of[example_id] for example_id in block.example_ids}
-        straddling += len(touched) > 1
-        for name in touched:
-            blocks_by_split[name] = blocks_by_split.get(name, 0) + 1
-    return {
-        "block_count": len(blocks),
-        "block_size_histogram": dict(sorted(histogram.items(), key=lambda kv: int(kv[0]))),
-        "duplicate_block_count": sum(1 for block in blocks if block.duplicate),
-        "blocks_by_split": dict(sorted(blocks_by_split.items())),
-        "straddling_block_count": straddling,
-        "near_method": dedup.near_method,
-        "note": (
-            "effective_n is a property of a scored comparison, not of a dataset: it needs an "
-            "intraclass correlation, which needs system scores. Resample these blocks, not "
-            "the rows — see docs/STATISTICS.md."
-        ),
-    }
-
-
-def _recommendations(
-    split_report: SplitReport,
-    dedup: DedupReport,
-    labels: LabelAuditReport,
-    leakage: LeakageReport,
-    difficulty: DifficultyReport,
-    dependence: Mapping[str, object],
-    n_examples: int,
-) -> list[str]:
-    """Prioritized, actionable notes derived from what the stages actually found."""
-    notes: list[str] = []
-
-    if split_report.residual_overlap:
-        notes.append(
-            f"{len(split_report.residual_overlap)} duplicate cluster(s) straddle a split "
-            f"boundary: a test score is partly a memorization score. Rebuild with "
-            f"--strategy adversarial."
-        )
-    if leakage.answer_in_prompt:
-        notes.append(
-            f"{len(leakage.answer_in_prompt)} example(s) contain their gold answer in the "
-            f"prompt; they measure copying, not the task."
-        )
-    if leakage.retrieval_contamination:
-        notes.append(
-            f"{len(leakage.retrieval_contamination)} retrieval example(s) carry a label "
-            f"artifact in a retrieved document."
-        )
-    n_exact = len(dedup.exact) + len(dedup.normalized)
-    if n_exact:
-        notes.append(
-            f"{n_exact} exact/normalized duplicate cluster(s) remain in the release; "
-            f"`--drop exact,normalized` removes the redundant members and records each "
-            f"removal in manifest.excluded."
-        )
-    if split_report.eval_duplicates:
-        notes.append(
-            f"{len(split_report.eval_duplicates)} duplicate-cluster example(s) sit in "
-            f"dev/test: they spend evaluation slots on repeated items and narrow every "
-            f"confidence interval computed from them."
-        )
-    blocking = labels.blocking_example_ids
-    if blocking and not split_report.quarantined:
-        notes.append(
-            f"{len(blocking)} example(s) have a missing, conflicting, or unadjudicated gold "
-            f"answer; `--drop blocking-labels` removes them, `--quarantine-blocking` keeps "
-            f"them out of dev/test without deleting them."
-        )
-    elif blocking:
-        notes.append(
-            f"{len(blocking)} example(s) still lack a settled gold answer. They are "
-            f"quarantined in train, not deleted, so an adjudication pass can restore them "
-            f"to the evaluation splits without rebuilding the corpus."
-        )
-    if not difficulty.trustworthy:
-        notes.append(
-            "the difficulty heuristic's ranking is not distinguishable from a random "
-            "ranking of the declared tags on this corpus; do not read its buckets as "
-            "difficulty labels (docs/DIFFICULTY.md)."
-        )
-    block_count = int(dependence["block_count"])  # type: ignore[arg-type]
-    if block_count < n_examples:
-        notes.append(
-            f"{n_examples} examples form {block_count} independent block(s); a bootstrap "
-            f"that resamples rows will under-cover. Use `evalforge stats --resample-unit "
-            f"block` (the default)."
-        )
-    return notes
-
-
 def build_audit(
     dataset_id: str,
     version: str,
@@ -371,34 +264,24 @@ def build_audit(
 ) -> AuditResult:
     """Assemble the release's ``AuditResult`` from the stage reports.
 
-    ``audit_id`` is derived from the released content, so the same data always produces the
-    same audit id and a report can be matched to the rows it describes without trusting a
-    filename. ``AuditResult`` has two deduplication buckets and the ladder has three rungs:
-    ``normalized`` findings are filed under ``near_duplicates`` and keep their ``kind``, so
-    nothing is lost and nothing is relabelled.
+    A thin adapter over :func:`eval_dataset_forge.audit.assemble_audit`: it narrows the builder's
+    :class:`~eval_dataset_forge.splits.SplitReport` to the :class:`~eval_dataset_forge.audit.
+    SplitFacts` the audit actually needs, and marks the assignment ``constructed`` so a reader can
+    tell a ``residual_overlap: 0`` earned by the adversarial strategy from one a curator handed us.
 
-    ``split_statistics`` omits the per-example assignment, which the split files already
-    carry verbatim.
+    ``split_statistics`` omits the per-example assignment, which the split files already carry
+    verbatim.
     """
-    split_stats = split_report.to_dict()
-    for key in ("assignment", "duplicate_example_ids"):
-        split_stats.pop(key, None)
-    split_stats["dependence"] = dict(dependence)
-
-    return AuditResult(
-        audit_id="audit-" + content_id(examples).split(":", 1)[1][:16],
-        dataset_id=dataset_id,
-        version=version,
-        exact_duplicates=list(dedup.exact),
-        near_duplicates=[*dedup.normalized, *dedup.near],
-        leakage_flags=leakage.findings,
-        label_warnings=labels.findings,
-        pii_flags=[asdict(finding) for finding in scan_examples(examples)],
-        difficulty_distribution=difficulty.distribution,
-        split_statistics=split_stats,
-        recommendations=_recommendations(
-            split_report, dedup, labels, leakage, difficulty, dependence, len(examples)
-        ),
+    return assemble_audit(
+        dataset_id,
+        version,
+        examples,
+        dedup=dedup,
+        labels=labels,
+        leakage=leakage,
+        difficulty=difficulty,
+        facts=SplitFacts.from_split_report(split_report),
+        block_structure=dependence,
     )
 
 
@@ -486,12 +369,11 @@ anyone able to rewrite the data can rewrite the digests that describe it.
 
 {excluded}
 
-## Not in this bundle yet
+## Derived artifacts
 
-- `audit.md`, the human-readable rendering of `audit.json` — Milestone 12.
-
-`dataset_card.md` is present, and is a rendering of `manifest.json` + `audit.json`. Check that
-this tool version still reproduces it:
+`audit.md` is a rendering of `audit.json`, and `dataset_card.md` a rendering of `manifest.json`
++ `audit.json`. Neither recomputes anything, so neither can disagree with the evidence it reads.
+Check that this tool version still reproduces the card:
 
 ```bash
 PYTHONPATH=src python3 -m eval_dataset_forge dataset-card \\
@@ -543,11 +425,18 @@ def _render_artifacts(
     audit: AuditResult,
     reproduce: bytes,
 ) -> dict[str, bytes]:
+    """Every artifact whose bytes do not depend on the manifest.
+
+    ``audit.md`` belongs here and ``dataset_card.md`` does not: the audit report is rendered from
+    the ``AuditResult`` alone, while the card is rendered from a manifest that cannot exist until
+    the card's own digest is known. The builder therefore adds the card one step later.
+    """
     artifacts = {EXAMPLES_FILE: render_jsonl(examples)}
     for name in split_report.spec.ratios:
         members = [example for example in examples if str(example.split) == name]
         artifacts[f"{SPLITS_DIR}/{name}.jsonl"] = render_jsonl(members)
     artifacts[AUDIT_FILE] = render_json(audit.model_dump(mode="json"))
+    artifacts[AUDIT_MD_FILE] = render_audit_markdown(audit)
     artifacts[REPRODUCE_FILE] = reproduce
     return artifacts
 
@@ -622,7 +511,7 @@ def build_release(
         assigned, dedup_report=dedup, near_require_same_answer=near_require_same_answer
     )
     difficulty = score_dataset(assigned, n_resamples=difficulty_resamples, seed=seed)
-    dependence = _dependence(assigned, dedup)
+    block_structure = dependence(assigned, dedup)
 
     def assemble(
         at_version: str,
@@ -646,7 +535,7 @@ def build_release(
             leakage=leakage,
             difficulty=difficulty,
             split_report=split_report,
-            dependence=dependence,
+            dependence=block_structure,
         )
         reproduce = render_reproduce(
             dataset_id=dataset_id,
@@ -676,7 +565,7 @@ def build_release(
                 audit=audit,
                 split_spec=split_report.spec,
                 excluded=[item.to_dict() for item in exclusions],
-                dependence=dependence,
+                dependence=block_structure,
                 source_content_id=source_id,
                 known_limitations=_known_limitations(difficulty, dedup),
                 license_notes=license_notes,

@@ -30,27 +30,37 @@
   </nav>
 </header>
 <main>
-  <p><span class="status pending">populated in Milestone 12</span></p>
+  <p><span class="status done">M12</span></p>
   <h1>Results</h1>
   <p class="lede">The smoke audit runs the entire pipeline over every fixture,
   fully offline. Because the fixtures are hand-authored with deliberate defects,
-  the audit's job is to rediscover the planted defects — that is the
-  demonstration that the checks work.</p>
+  the audit's job is to rediscover the planted defects.</p>
 
-  <h2>Expected findings per fixture</h2>
+  <div class="callout warn"><strong>Every number on this page is measured in
+  sample.</strong> These fixtures' defects were planted by the same repository that
+  wrote the detectors, and the near-duplicate and answer-in-prompt thresholds were
+  <em>selected</em> by sweeps over these same fixtures. Recall here is a
+  resubstitution estimate: it says the pipeline finds what it was built to find, on
+  the data it was built against. It does not estimate performance on a corpus this
+  repository has not seen. There is no held-out corpus, and saying so is cheaper
+  than implying otherwise by silence.</div>
+
+  <h2>The headline, and why it is not the recall</h2>
+  <p><strong>40 of 40 detectable planted defects recovered, 0 missed, 5 unexplained
+  assertions across 56 examples.</strong> That number, alone, is worthless — and the
+  smoke audit proves it by scoring a detector that flags <em>everything</em> under
+  the identical rule:</p>
   <table>
-    <tr><th>fixture</th><th>planted defects the audit should surface</th></tr>
-    <tr><td>qa_toy</td><td>duplicate + paraphrased questions, mislabeled answers, ambiguous questions, train/test overlap</td></tr>
-    <tr><td>agent_tasks_toy</td><td>near-duplicate tasks, leaked solutions, ambiguous scoring</td></tr>
-    <tr><td>retrieval_toy</td><td>duplicated docs, query–document leakage, incomplete relevance labels</td></tr>
-    <tr><td>bio_toy</td><td>entity-label conflicts, evidence–label mismatches</td></tr>
-    <tr><td>safety_toy</td><td>over-/under-refusal and ambiguous-boundary label conflicts</td></tr>
+    <tr><th>detector</th><th>recall</th><th>precision (<code>dedup.exact</code>)</th><th>precision (<code>labels.missing</code>)</th></tr>
+    <tr><td>the pipeline</td><td><strong>1.000</strong></td><td>1.000</td><td>1.000</td></tr>
+    <tr><td>flag every example and every pair</td><td><strong>1.000</strong></td><td>0.014</td><td>0.071</td></tr>
   </table>
-
-  <p>Once Milestone 12 runs, this page reports the actual per-fixture counts
-  (duplicates, leakage, label warnings, PII), difficulty distributions, the built
-  release, the generated dataset card, and the bootstrap / ranking-stability demo
-  — with any small-N instability warnings.</p>
+  <p>Recall is maximized by asserting everything, so it bounds what a detector
+  <em>misses</em> and says nothing about what it <em>invents</em>. No matching rule
+  repairs this: subset matching, exact-set matching, and the pairwise rule all award
+  the degenerate detector full recall, because full recall is what it has. So every
+  recall is printed beside a precision, and the degenerate control ships inside the
+  report rather than in a footnote.</p>
 
   <h2>Measured so far</h2>
   <p>Stages land one milestone at a time; each contributes its numbers as it is
@@ -269,6 +279,111 @@
 
   <p>See <a href="dataset-card.html">Dataset card</a>.</p>
 
+  <h2>Smoke audit — scoring the scorer <span class="status done">M12</span></h2>
+  <p>Every stage above scored itself against <code>defects.yaml</code> by hand. This
+  milestone runs the whole pipeline over every fixture and does that scoring in code —
+  which forced the question the hand-written tables never had to answer: <em>what is a
+  correct scoring rule for a defect detector?</em></p>
+
+  <p><strong>A cluster is a conjunction of assertions, not one assertion.</strong>
+  Duplicate findings are clusters. Score a cluster as one prediction and you must choose
+  between two wrong rules: count it correct if it <em>contains</em> a planted pair, and
+  one 14-member cluster is "correct"; count it correct only if it <em>equals</em> a
+  planted pair, and a true 3-member cluster covering a planted pair is "wrong". A cluster
+  of size <em>k</em> asserts all <em>k(k−1)/2</em> of its pairs, so that is the unit both
+  recall and precision are counted on.</p>
+  <p>This is not bookkeeping. On <code>qa_toy</code> the near stage emits one cluster,
+  <code>{qa-003, qa-004, qa-012}</code>. It thereby asserts
+  <code>qa-004 ≈ qa-012</code> — a pair nothing plants, and which no cluster-level view
+  would ever show. Pair decomposition surfaces it as the channel's one unexplained
+  assertion and drops its precision to 0.571.</p>
+
+  <table>
+    <tr><th>channel</th><th>unit</th><th>planted</th><th>asserted</th><th>recall</th><th>precision</th><th>precision (flag-everything)</th></tr>
+    <tr><td><code>dedup.exact</code></td><td>pair</td><td>4</td><td>4</td><td>1.000</td><td>1.000</td><td>0.014</td></tr>
+    <tr><td><code>dedup.near</code></td><td>pair</td><td>5</td><td>7</td><td>0.800</td><td>0.571</td><td>0.017</td></tr>
+    <tr><td><code>dedup.duplicate_sources</code></td><td>pair</td><td>2</td><td>2</td><td>1.000</td><td>1.000</td><td>0.007</td></tr>
+    <tr><td><code>leakage.train_test_overlap</code></td><td>pair</td><td>9</td><td>11</td><td>0.889</td><td>0.727</td><td>0.031</td></tr>
+    <tr><td><code>leakage.answer_in_prompt</code></td><td>example</td><td>2</td><td>2</td><td>1.000</td><td>1.000</td><td>0.036</td></tr>
+    <tr><td><code>leakage.ngram_overlap</code></td><td>example</td><td>0</td><td>4</td><td>n/a</td><td>n/a</td><td>n/a</td></tr>
+    <tr><td><code>leakage.retrieval_contamination</code></td><td>example</td><td>1</td><td>3</td><td>1.000</td><td>0.333</td><td>0.018</td></tr>
+    <tr><td><code>labels.missing</code></td><td>example</td><td>4</td><td>4</td><td>1.000</td><td>1.000</td><td>0.071</td></tr>
+    <tr><td><code>labels.conflicting</code></td><td>example</td><td>5</td><td>5</td><td>1.000</td><td>1.000</td><td>0.089</td></tr>
+    <tr><td><code>labels.ambiguous</code></td><td>example</td><td>5</td><td>6</td><td>1.000</td><td>0.833</td><td>0.089</td></tr>
+    <tr><td><code>labels.inconsistent_format</code></td><td>example</td><td>2</td><td>2</td><td>1.000</td><td>1.000</td><td>0.036</td></tr>
+    <tr><td><code>leakage.duplicate_documents</code></td><td>doc</td><td>1</td><td>1</td><td>1.000</td><td>1.000</td><td>0.005</td></tr>
+  </table>
+  <p>Channel by channel the pipeline's precision is <strong>9× to 190×</strong> the
+  control's, and the gap is widest on the pair channels for a structural reason: a
+  flag-everything detector must assert all <code>C(n,2)</code> pairs but only
+  <code>n</code> examples, so its pair precision falls as <code>1/n²</code> and its
+  example precision only as <code>1/n</code>. <code>precision</code> is kind-specific and
+  is <code>n/a</code> where the fixtures plant nothing of that kind —
+  <code>0.0</code> would then be the only value any non-silent detector could score.</p>
+
+  <p><strong>The denominator is chosen by the authors of the detectors.</strong> 45
+  defects are planted; 40 enter the recall denominator. The five that do not are listed
+  by id, with which of <em>two different</em> reasons excluded them:
+  <code>not-auto-detectable</code> is the <em>fixture's</em> declaration that no
+  heuristic here should find it (three <code>mislabeled</code> answers);
+  <code>no-channel</code> is a fact about the <em>scorer</em> — this project wires no
+  detector to that ground-truth kind (<code>paraphrased_documents</code>). Collapsing the
+  two would let a missed defect be reclassified as an out-of-scope one. Recall over
+  <em>every</em> planted defect, refusing all exclusions, is <strong>0.909</strong>, and
+  the report prints it beside the 1.000. An unmapped ground-truth kind raises rather than
+  being skipped: a planted defect must not leave the denominator by typo.</p>
+
+  <p><strong>Corroboration across channels is not a false positive.</strong> The n-gram
+  check flags <code>qa-002</code> — planted as half of an <code>exact_duplicates</code>
+  pair. The retrieval check flags <code>ret-001</code>/<code>ret-002</code> — planted as a
+  <code>duplicate_documents</code> pair. The scorer projects ground truth into the
+  channel's unit and counts those as <em>explained</em>. The projection preserves the
+  unit, which stops it becoming a blanket pardon: <code>qa-004</code> and
+  <code>qa-012</code> are each planted, their <em>pairing</em> is not, so it stays
+  unexplained. Corpus-wide there are exactly <strong>five</strong> unexplained
+  assertions; four were already documented as disputed in M4–M5, and the fifth
+  (<code>ret-005</code>) is a gap in the ground truth, flagged for human review rather
+  than settled by editing <code>defects.yaml</code>.</p>
+
+  <div class="callout warn"><strong>A near-duplicate verdict is not a property of a pair
+  — it is a property of a pair <em>and its corpus</em>.</strong> The pooled audit finds
+  one duplicate cluster the per-fixture audits do not, and it is not a cross-fixture one:
+  <code>{saf-004, saf-005, saf-007}</code> lies entirely inside <code>safety_toy</code>.
+  <code>sim(saf-004, saf-007)</code> is <strong>0.2866</strong> alone and
+  <strong>0.3438</strong> pooled, straddling the 0.30 threshold — neither prompt changed.
+  TF-IDF's inverse-document-frequency term is computed over the document
+  <em>collection</em>, so the boilerplate the two safety prompts share is common inside
+  <code>safety_toy</code> and rare against the wider pooled vocabulary, and rarer means
+  heavier. Consequences: <strong>deduplication is not composable</strong> (auditing shards
+  and unioning the findings is not auditing the union), and <strong>appending unrelated
+  examples can create duplicate clusters among examples that did not change</strong> —
+  which, because the adversarial split builder derives blocks from those clusters and
+  <code>eval_id</code> folds the split in, can move an untouched example's split and
+  change a release's <code>eval_id</code>. Flagged for review; the Jaccard fallback has no
+  IDF term and is presumably immune, which is <em>not yet measured</em>.</div>
+
+  <p>Per-fixture, at default settings:</p>
+  <table>
+    <tr><th>fixture</th><th>examples</th><th>blocks</th><th>duplicate clusters</th><th>leakage findings</th><th>label warnings</th><th>PII</th></tr>
+    <tr><td><code>qa_toy</code></td><td>14</td><td>11</td><td>2</td><td>4</td><td>8</td><td>0</td></tr>
+    <tr><td><code>agent_tasks_toy</code></td><td>12</td><td>9</td><td>3</td><td>5</td><td>6</td><td>0</td></tr>
+    <tr><td><code>retrieval_toy</code></td><td>10</td><td>9</td><td>0</td><td>2</td><td>4</td><td>0</td></tr>
+    <tr><td><code>bio_toy</code></td><td>10</td><td>8</td><td>2</td><td>3</td><td>6</td><td>0</td></tr>
+    <tr><td><code>safety_toy</code></td><td>10</td><td>8</td><td>2</td><td>3</td><td>7</td><td>0</td></tr>
+    <tr><td><strong>pooled</strong></td><td><strong>56</strong></td><td><strong>44</strong></td><td>10</td><td>18</td><td>31</td><td>0</td></tr>
+  </table>
+
+  <p><strong>Two smaller results.</strong> An audit describes the split it is
+  <em>given</em> and never builds one, so <code>evalforge audit</code> on an unsplit
+  corpus finds that four checks return zero <em>by vacuity</em> — and says so, in a
+  warning, in a recommendation naming the four, and in <code>audit.md</code>. A check that
+  could not run is not a check that passed. And the release bundle is finally complete:
+  <code>audit.md</code>, listed in the plan since Milestone 0 and absent from every
+  release until now, ships beside <code>audit.json</code>, rendered from it and from
+  nothing else. Adding it is a <code>patch</code> by Milestone 10's own machinery
+  (<code>content_id</code> and <code>eval_id</code> unchanged), so the demo release was
+  rebuilt in place at v0.1.0 rather than re-versioned, and a test pins the reasoning.</p>
+
   <h2>Reproduce</h2>
 <pre><code>python3 -m pytest -q tests/test_dedup.py      # 99 tests
 python3 -m pytest -q tests/test_leakage.py    # 111 tests
@@ -278,6 +393,7 @@ python3 -m pytest -q tests/test_difficulty.py # 163 tests
 python3 -m pytest -q tests/test_statistics.py # 115 tests
 python3 -m pytest -q tests/test_release.py    # 72 tests
 python3 -m pytest -q tests/test_reports.py    # 64 tests
+python3 -m pytest -q tests/test_audit.py      # 47 tests
 
 python3 scripts/split_identity_experiment.py --seeds 400   # the table above
 
@@ -296,11 +412,19 @@ PYTHONPATH=src python3 -m eval_dataset_forge stats \
     --dataset datasets/fixtures/qa_toy/examples.jsonl \
     --simulate --fail-on-unstable-ranking          # exits 1, by design
 
-PYTHONPATH=src python3 -m eval_dataset_forge smoke --out results/reports/smoke_audit.md  # Milestone 12</code></pre>
+PYTHONPATH=src python3 -m eval_dataset_forge smoke \
+    --out results/reports/smoke_audit.md \
+    --fail-on-missed-defect --fail-on-control-violation   # exit 0
+
+PYTHONPATH=src python3 -m eval_dataset_forge audit \
+    --dataset datasets/fixtures/qa_toy/examples.jsonl \
+    --out results/audits/qa_toy/</code></pre>
 
   <h3>Status</h3>
-  <p>Per-stage numbers land as each stage does; the end-to-end smoke audit that fills
-  the rest of this page awaits Milestone 12. See <code>docs/RESULTS.md</code>.</p>
+  <p>Every stage is implemented and every number above is reproducible offline from the
+  committed fixtures. The full run is <code>evalforge smoke</code>; the summary it writes
+  is <code>results/reports/smoke_audit.md</code> (gitignored — it regenerates
+  byte-for-byte, and carries no timestamp). See <code>docs/RESULTS.md</code>.</p>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

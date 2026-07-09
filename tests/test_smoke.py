@@ -37,12 +37,15 @@ def test_no_args_prints_help(capsys) -> None:
     assert "usage" in capsys.readouterr().out.lower()
 
 
-def test_pending_commands_exit_2(capsys) -> None:
-    # `audit` is still a stub (lands in Milestone 12) and exits 2 with a pointer.
-    rc = main(["audit", "--dataset", "datasets/fixtures/qa_toy/examples.jsonl",
-               "--out", "results/audits/qa_toy/"])
-    assert rc == 2
-    assert "Milestone" in capsys.readouterr().out
+def test_no_subcommand_is_a_stub() -> None:
+    # Milestone 12 implemented the last two (`audit`, `smoke`). Every subcommand declared in the
+    # PLAN's CLI contract now has a real handler, and the parser has never changed shape.
+    choices = build_parser()._subparsers._group_actions[0].choices
+    for name, subparser in choices.items():
+        handler = subparser.get_default("func")
+        assert handler is not None, f"{name} has no handler"
+        assert handler.__module__.startswith("eval_dataset_forge"), name
+        assert not handler.__name__.startswith("_cmd_pending"), f"{name} is still a stub"
 
 
 def test_validate_command_implemented(capsys) -> None:

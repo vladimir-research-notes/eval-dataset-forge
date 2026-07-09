@@ -83,7 +83,7 @@ Each row is a `DatasetExample` under schema `0.1.0`, with fields `example_id`, `
 ## Recommendations
 
 - 1 example(s) contain their gold answer in the prompt; they measure copying, not the task.
-- 1 exact/normalized duplicate cluster(s) remain in the release; `--drop exact,normalized` removes the redundant members and records each removal in manifest.excluded.
+- 1 exact/normalized duplicate cluster(s) remain in the dataset; `evalforge release --drop exact,normalized` removes the redundant members and records each removal in manifest.excluded.
 - 4 example(s) still lack a settled gold answer. They are quarantined in train, not deleted, so an adjudication pass can restore them to the evaluation splits without rebuilding the corpus.
 - the difficulty heuristic's ranking is not distinguishable from a random ranking of the declared tags on this corpus; do not read its buckets as difficulty labels (docs/DIFFICULTY.md).
 - 14 examples form 11 independent block(s); a bootstrap that resamples rows will under-cover. Use `evalforge stats --resample-unit block` (the default).

@@ -1,9 +1,7 @@
 """Command-line entry point for eval-dataset-forge (``evalforge``).
 
-Only ``check-env``, ``version``, and ``info`` are implemented at scaffold stage.
-The audit/build subcommands are declared here with a stable interface and print a
-pointer to the milestone that implements them, so the CLI contract is visible
-from day one and can be filled in without reshaping the parser.
+Every subcommand in ``docs/PLAN.md`` §8 is implemented as of Milestone 12; the parser has kept
+the same shape since the scaffold, so the CLI contract was visible before any of it worked.
 
 Top-level imports are stdlib-only so ``evalforge --help`` and ``check-env`` work
 before the optional scientific stack is installed. Heavy imports (pydantic,
@@ -18,13 +16,6 @@ import json
 import sys
 
 from eval_dataset_forge import SCHEMA_VERSION, __version__
-
-# Subcommands that are declared now but implemented in a later milestone. Maps
-# the command name to the milestone number that lands it (see docs/PLAN.md).
-_PENDING = {
-    "audit": 12,
-    "smoke": 12,
-}
 
 # Runtime dependencies the framework relies on, grouped by hardness.
 _CORE_DEPS = ["pydantic", "numpy", "yaml"]
@@ -417,20 +408,87 @@ def cmd_dataset_card(args: argparse.Namespace) -> int:
     return 1 if args.fail_on_incomplete and missing else 0
 
 
+def cmd_audit(args: argparse.Namespace) -> int:
+    """Run the full audit pipeline over a dataset and write ``audit.json`` + ``audit.md``.
+
+    The audit describes the dataset **as it is on disk**, including whatever ``split`` the rows
+    carry. It never builds a split: re-splitting inside an audit would make the report describe a
+    dataset that exists nowhere. Handed an unsplit corpus it says so, because the four cross-split
+    checks then return zero by vacuity rather than by cleanliness.
+
+    Exit code is 0 unless ``--fail-on-leakage`` is set and a duplicate cluster straddles a split
+    boundary — the check a CI job would gate a release on. The audit package is imported lazily so
+    the stdlib-only commands keep working without the scientific stack.
+    """
+    from eval_dataset_forge.audit import audit_dataset, format_report, write_audit
+
+    try:
+        report = audit_dataset(
+            args.dataset,
+            dataset_id=args.dataset_id or "",
+            version=args.audit_version,
+            near_require_same_answer=not args.ignore_answer_gate,
+            difficulty_resamples=args.resamples,
+            seed=args.seed,
+        )
+    except ValueError as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(format_report(report))
+
+    written = write_audit(report, args.out, html=args.html)
+    print(f"\nwrote {len(written)} audit artifact(s) under {args.out}")
+    return 1 if args.fail_on_leakage and report.facts.residual_overlap else 0
+
+
+def cmd_smoke(args: argparse.Namespace) -> int:
+    """Run the whole pipeline over every fixture and score it against the planted ground truth.
+
+    Writes ``audit.json`` + ``audit.md`` per fixture under ``--audits-dir`` and a scored summary to
+    ``--out``. Fully offline; no model, no network, no paid API.
+
+    Exit code is 0 unless a gate is requested. ``--fail-on-missed-defect`` exits 1 when a planted,
+    detectable defect is invisible to *every* channel — the regression a change to a threshold
+    would cause. ``--fail-on-control-violation`` exits 1 when a detector flags a planted property
+    that is not a defect.
+
+    Neither gate turns the recall into a claim about unseen data: the thresholds were tuned on
+    these fixtures, and the report says so on its first page.
+    """
+    from eval_dataset_forge.smoke import format_report, run_smoke, write_smoke
+
+    report = run_smoke(
+        args.fixtures, seed=args.seed, difficulty_resamples=args.resamples
+    )
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(format_report(report))
+
+    written = write_smoke(
+        report,
+        args.out,
+        audits_dir=None if args.no_audits else args.audits_dir,
+        html_path=args.html,
+    )
+    print(f"\nwrote {len(written)} artifact(s); report at {args.out}")
+
+    if args.fail_on_missed_defect and report.missed():
+        return 1
+    if args.fail_on_control_violation and report.controls_violated():
+        return 1
+    return 0
+
+
 def _utc_now() -> str:
     from datetime import UTC, datetime
 
     return datetime.now(UTC).isoformat(timespec="seconds")
-
-
-def _cmd_pending(name: str):
-    def handler(_args: argparse.Namespace) -> int:
-        milestone = _PENDING[name]
-        print(f"`evalforge {name}` is not implemented yet.")
-        print(f"It lands in Milestone {milestone} — see docs/PLAN.md.")
-        return 2
-
-    return handler
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -470,7 +528,44 @@ def build_parser() -> argparse.ArgumentParser:
     p_audit = sub.add_parser("audit", help="run the full audit pipeline over a dataset")
     p_audit.add_argument("--dataset", required=True, help="path to examples.jsonl")
     p_audit.add_argument("--out", required=True, help="output directory for the audit report")
-    p_audit.set_defaults(func=_cmd_pending("audit"))
+    p_audit.add_argument(
+        "--dataset-id",
+        help="stable id for the dataset (default: the name of the directory holding it)",
+    )
+    p_audit.add_argument(
+        "--audit-version",
+        default="unversioned",
+        metavar="VERSION",
+        help="version string recorded in audit.json. Defaults to 'unversioned': a file on disk "
+        "makes no claim about score comparability, and a release version would manufacture one",
+    )
+    p_audit.add_argument(
+        "--html",
+        action="store_true",
+        help="also write a standalone audit.html beside audit.md",
+    )
+    p_audit.add_argument(
+        "--ignore-answer-gate",
+        action="store_true",
+        help="let the near-duplicate stage pair examples with differing gold answers "
+        "(needed for retrieval-style data whose answers are document ids)",
+    )
+    p_audit.add_argument("--seed", type=int, default=0, help="seed for the permutation tests")
+    p_audit.add_argument(
+        "--resamples",
+        type=int,
+        default=2_000,
+        help="permutation resamples for the difficulty calibration (default: 2000)",
+    )
+    p_audit.add_argument(
+        "--fail-on-leakage",
+        action="store_true",
+        help="exit 1 if a duplicate cluster straddles a split boundary in the dataset as given",
+    )
+    p_audit.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_audit.set_defaults(func=cmd_audit)
 
     p_splits = sub.add_parser("build-splits", help="construct train/dev/test splits")
     p_splits.add_argument("--dataset", required=True, help="path to examples.jsonl")
@@ -743,9 +838,48 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_card.set_defaults(func=cmd_dataset_card)
 
-    p_smoke = sub.add_parser("smoke", help="run a full smoke audit over the fixture datasets")
+    p_smoke = sub.add_parser(
+        "smoke",
+        help="run the full pipeline over every fixture and score it against planted ground truth",
+    )
     p_smoke.add_argument("--out", required=True, help="output markdown report path")
-    p_smoke.set_defaults(func=_cmd_pending("smoke"))
+    p_smoke.add_argument(
+        "--fixtures",
+        default="datasets/fixtures",
+        help="directory of fixture datasets (default: datasets/fixtures)",
+    )
+    p_smoke.add_argument(
+        "--audits-dir",
+        default="results/audits",
+        help="where the per-dataset audit.json / audit.md land (default: results/audits)",
+    )
+    p_smoke.add_argument(
+        "--no-audits", action="store_true", help="write only the summary report"
+    )
+    p_smoke.add_argument(
+        "--html", metavar="PATH", help="also write a standalone HTML copy of the report"
+    )
+    p_smoke.add_argument("--seed", type=int, default=0, help="seed for the permutation tests")
+    p_smoke.add_argument(
+        "--resamples",
+        type=int,
+        default=2_000,
+        help="permutation resamples for the difficulty calibration (default: 2000)",
+    )
+    p_smoke.add_argument(
+        "--fail-on-missed-defect",
+        action="store_true",
+        help="exit 1 when a planted, detectable defect is invisible to every channel",
+    )
+    p_smoke.add_argument(
+        "--fail-on-control-violation",
+        action="store_true",
+        help="exit 1 when a detector flags a planted property that is not a defect",
+    )
+    p_smoke.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_smoke.set_defaults(func=cmd_smoke)
 
     return parser
 

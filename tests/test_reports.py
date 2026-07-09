@@ -668,7 +668,9 @@ def test_cli_release_records_card_meta_in_the_reproduce_command(tmp_path: Path) 
     assert code == 0
     reproduce = (out / "REPRODUCE.md").read_text(encoding="utf-8")
     assert f"--card-meta {QA_TOY_CARD_META}" in reproduce
-    assert "dataset_card.md` is present" in reproduce
+    assert "`audit.md` is a rendering of `audit.json`" in reproduce
+    # Milestone 12 completed the bundle: REPRODUCE.md no longer names a missing artifact.
+    assert "Not in this bundle yet" not in reproduce
     assert "`dataset_card.md` — Milestone 11" not in reproduce
 
 

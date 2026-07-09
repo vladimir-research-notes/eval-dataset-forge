@@ -37,12 +37,27 @@ split, which is neither of them.
 from __future__ import annotations
 
 import json
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
 from eval_dataset_forge.reports import html as html_backend
 from eval_dataset_forge.reports import markdown as md_backend
+from eval_dataset_forge.reports.audit_report import (
+    CERTAINTY as _CERTAINTY,
+)
+from eval_dataset_forge.reports.audit_report import (
+    LABEL_LABEL as _LABEL_LABEL,
+)
+from eval_dataset_forge.reports.audit_report import (
+    LEAKAGE_LABEL as _LEAKAGE_LABEL,
+)
+from eval_dataset_forge.reports.audit_report import (
+    counts_by_kind as _by_kind,
+)
+from eval_dataset_forge.reports.audit_report import (
+    dedup_counts as _dedup_counts,
+)
 from eval_dataset_forge.reports.document import (
     Bullets,
     Document,
@@ -71,40 +86,10 @@ CARD_FILE = "dataset_card.md"
 # ``audit.json`` is queried. Six ids fit on a line and are enough to start looking.
 MAX_IDS = 6
 
-# What each audit dimension can and cannot promise. The card prints this column beside every
-# count, because "0 near-duplicates" and "0 exact duplicates" are claims of very different
-# strength and a bare table implies they are the same claim.
-_CERTAINTY: dict[str, str] = {
-    "exact_duplicates": "exact",
-    "normalized_duplicates": "exact after normalization",
-    "near_duplicates": "heuristic",
-    str(LeakageKind.TRAIN_TEST_OVERLAP): "inherits the dedup ladder (exact or heuristic)",
-    str(LeakageKind.ANSWER_IN_PROMPT): "heuristic",
-    str(LeakageKind.NGRAM_OVERLAP): "exact given the n-gram width",
-    str(LeakageKind.RETRIEVAL_CONTAMINATION): "exact",
-    str(LabelIssue.MISSING): "exact",
-    str(LabelIssue.CONFLICTING): "exact",
-    str(LabelIssue.AMBIGUOUS): "declaration, plus a heuristic",
-    str(LabelIssue.INCONSISTENT_FORMAT): "exact",
-    str(LabelIssue.NEEDS_ADJUDICATION): "derived from the rows above",
-    "pii_flags": "heuristic (pattern match)",
-}
-
-# Row labels for the findings table.
-_LEAKAGE_LABEL = {
-    str(LeakageKind.TRAIN_TEST_OVERLAP): "leakage: train/test overlap",
-    str(LeakageKind.ANSWER_IN_PROMPT): "leakage: answer in prompt",
-    str(LeakageKind.NGRAM_OVERLAP): "leakage: n-gram overlap",
-    str(LeakageKind.RETRIEVAL_CONTAMINATION): "leakage: retrieval contamination",
-}
-
-_LABEL_LABEL = {
-    str(LabelIssue.MISSING): "labels: missing gold answer",
-    str(LabelIssue.CONFLICTING): "labels: conflicting annotations",
-    str(LabelIssue.AMBIGUOUS): "labels: ambiguous",
-    str(LabelIssue.INCONSISTENT_FORMAT): "labels: inconsistent format",
-    str(LabelIssue.NEEDS_ADJUDICATION): "labels: needs adjudication",
-}
+# The certainty vocabulary, the row labels, and the per-kind counters are defined by
+# :mod:`eval_dataset_forge.reports.audit_report` and imported above. The card's findings table
+# and the audit report's make the same claims about the same dimensions; a second copy of that
+# table would be a second place for the word "heuristic" to go missing.
 
 # Sentence fragments for the prose bullets, which need a grammatical object rather than a
 # column heading. "2 example(s) with ambiguous" is not a sentence.
@@ -159,33 +144,6 @@ def load_card_meta(path: str | Path) -> CardMeta:
 def _split_counts(audit: AuditResult) -> dict[str, int]:
     counts = audit.split_statistics.get("counts", {})
     return {key: int(value) for key, value in counts.items()} if counts else {}
-
-
-def _dedup_counts(audit: AuditResult) -> dict[str, int]:
-    """Cluster counts per rung of the ladder.
-
-    ``AuditResult`` has two buckets and the ladder has three rungs: ``normalized`` findings
-    live under ``near_duplicates`` and keep their ``kind``. Split them back apart, because a
-    normalized match is exact and a near match is not.
-    """
-    normalized = sum(1 for f in audit.near_duplicates if f.kind is DedupKind.NORMALIZED)
-    return {
-        "exact_duplicates": len(audit.exact_duplicates),
-        "normalized_duplicates": normalized,
-        "near_duplicates": len(audit.near_duplicates) - normalized,
-    }
-
-
-def _by_kind(findings: Iterable[Any], vocabulary: Iterable[Any]) -> dict[str, int]:
-    """Count findings per kind, including the kinds that fired zero times.
-
-    The zeros are the point. A card listing only what was found cannot be distinguished from
-    a card whose pipeline never ran that check.
-    """
-    counts = dict.fromkeys((str(kind) for kind in vocabulary), 0)
-    for finding in findings:
-        counts[str(finding.kind)] += 1
-    return counts
 
 
 def _ids(values: Sequence[str]) -> str:

@@ -56,7 +56,7 @@
     <tr><td>9</td><td>Statistics &amp; ranking stability</td><td>bootstrap CIs, paired comparison, ranking stability, small-N warnings</td><td><span class="status done">done</span></td></tr>
     <tr><td>10</td><td>Release builder</td><td>dataset JSONL, manifest, split files, audit summary, hashes, versioned release dir</td><td><span class="status done">done</span></td></tr>
     <tr><td>11</td><td>Dataset card generator</td><td>Markdown + optional HTML cards</td><td><span class="status done">done</span></td></tr>
-    <tr><td>12</td><td>Smoke audit &amp; results</td><td>full offline audit over all fixtures → results/ + docs/RESULTS.md</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>12</td><td>Smoke audit &amp; results</td><td>full offline audit over all fixtures → results/ + docs/RESULTS.md; findings scored against planted ground truth</td><td><span class="status done">done</span></td></tr>
     <tr><td>13</td><td>Integration contracts</td><td>documented contracts for code-agent-runtime, BioAgentBench, LLM regression, scientific-claim-verifier, agent-control-bench</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>14</td><td>Final portfolio report</td><td>README + docs to portfolio quality</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>15</td><td>Final cleanup</td><td>tests, lint, fixture validation, smoke audit, release build, report gen, hygiene scan, clean tree</td><td><span class="status pending">planned</span></td></tr>
@@ -243,7 +243,7 @@
   lower-variance estimate of the same one. The tool records <code>split_spec</code> and does not
   rank the strategies. See the <a href="releases.html">Releases</a> page.</p>
 
-  <h3>Milestone 11 — Dataset card generator</h3>
+  <h3>Milestone 11 — Dataset card generator <span class="status done">done</span></h3>
   <p>Renders a dataset card (Markdown, optional standalone HTML) from exactly two inputs — a
   release's <code>manifest.json</code> and its <code>audit.json</code> — so its "known issues"
   cannot drift from what the pipeline found. Nothing is recomputed: a view that recomputes its own
@@ -267,10 +267,36 @@
   rewriting one is a <code>patch</code>. See the <a href="dataset-card.html">Dataset card</a>
   page.</p>
 
-  <h3>Milestone 12 — Smoke audit &amp; results</h3>
-  <p>Run the whole pipeline over every fixture, fully offline, and write the
-  outcome to <code>results/</code> and <code>docs/RESULTS.md</code>. This is the
-  end-to-end proof that duplicates, leakage, and label conflicts are detected.</p>
+  <h3>Milestone 12 — Smoke audit &amp; results <span class="status done">done</span></h3>
+  <p>Runs the whole pipeline over every fixture and the pooled corpus, fully offline, writes an
+  <code>audit.json</code> + <code>audit.md</code> per dataset to <code>results/</code>, and scores
+  every finding against the defects that fixture deliberately plants. Adds
+  <code>evalforge audit</code> and <code>evalforge smoke</code> — the last two stubs in the CLI
+  contract. <strong>40 of 40 detectable planted defects recovered, 0 missed.</strong></p>
+  <p>The distinguishing work was noticing that <strong>that number is worthless on its own</strong>.
+  A detector that flags everything recovers every planted defect, and scores recall
+  <strong>1.000</strong> — exactly what the pipeline scores. No matching rule repairs it; subset,
+  exact-set, and pairwise matching all award the degenerate detector full recall, because full
+  recall is what it has. So the flag-everything control ships <em>inside</em> the report, scored on
+  every run, and every recall is printed beside a precision (which separates them by 9× to
+  190×).</p>
+  <p>That forced a second decision. A duplicate finding is a <em>cluster</em>, and a cluster is a
+  conjunction of assertions, not one assertion: <em>k</em> members assert <em>k(k−1)/2</em> pairs.
+  Scored per-cluster, one 14-member cluster is "correct"; scored per-pair, its precision is 0.033.
+  The decomposition earns its keep on real output too — <code>qa_toy</code>'s near stage merges
+  <code>{qa-003, qa-004, qa-012}</code> and thereby asserts <code>qa-004 ≈ qa-012</code>, which
+  nothing plants and which no cluster-level view would ever show. And because a recall's denominator
+  is chosen by the same people who wrote the detectors, all five excluded planted defects are listed
+  by id with which of two distinct reasons excluded them, and the recall over <em>every</em> planted
+  defect (0.909) is printed beside the 1.000.</p>
+  <p>Running the pooled corpus — audited but deliberately unscored — turned up a result none of the
+  per-fixture audits can see: <strong>a near-duplicate verdict is a property of a pair
+  <em>and its corpus</em></strong>. TF-IDF's IDF term is computed over the collection, so
+  <code>sim(saf-004, saf-007)</code> moves from 0.287 to 0.344 across the 0.30 threshold when
+  <code>safety_toy</code> is pooled with the other four fixtures — neither prompt changed.
+  Deduplication is therefore not composable. Finally, <code>audit.md</code> — listed in the plan
+  since Milestone 0, shipped in no release until now — completes the evidence bundle. See the
+  <a href="results.html">Results</a> page.</p>
 
   <h3>Milestone 13 — Integration contracts</h3>
   <p>Document how downstream projects consume audited releases, without taking a

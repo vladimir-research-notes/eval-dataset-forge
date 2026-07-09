@@ -43,7 +43,7 @@ import json
 
 import pytest
 
-from eval_dataset_forge.cli import _PENDING, _parse_ratios, build_parser, main
+from eval_dataset_forge.cli import _parse_ratios, build_parser, main
 from eval_dataset_forge.datasets import loader
 from eval_dataset_forge.dedup import find_duplicates
 from eval_dataset_forge.labels import audit_labels
@@ -1024,8 +1024,7 @@ def test_write_splits_emits_a_report_json(tmp_path, qa, reports):
 # --------------------------------------------------------------------------- #
 
 
-def test_build_splits_is_no_longer_pending():
-    assert "build-splits" not in _PENDING
+def test_build_splits_exposes_every_strategy():
     action = next(
         a for a in build_parser()._subparsers._group_actions[0].choices["build-splits"]._actions
         if a.dest == "strategy"
