@@ -29,7 +29,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status scaffold">Milestone 5 — leakage &amp; contamination</span></p>
+  <p><span class="status scaffold">Milestone 8 — difficulty calibration</span></p>
   <h1>Make evaluation datasets trustworthy</h1>
   <p class="lede">A benchmark that reports one accuracy number hides most of what
   decides whether that number means anything. eval-dataset-forge turns
@@ -51,7 +51,7 @@
     <div class="card"><h3>2. Deduplication</h3><p>Exact, normalized, and near-duplicate detection.</p></div>
     <div class="card"><h3>3. Leakage checks</h3><p>Train/test overlap, answer-in-prompt, n-gram &amp; retrieval contamination.</p></div>
     <div class="card"><h3>4. Label audit</h3><p>Missing, conflicting, ambiguous, and inconsistent labels, plus an adjudication queue.</p></div>
-    <div class="card"><h3>5. Difficulty calibration</h3><p>Transparent, model-free difficulty proxy + distribution.</p></div>
+    <div class="card"><h3>5. Difficulty calibration</h3><p>Transparent, model-free difficulty proxy + distribution — and a permutation test that says whether the proxy means anything.</p></div>
     <div class="card"><h3>6. Split rationale</h3><p>Random, stratified, source-grouped, adversarial, temporal.</p></div>
     <div class="card"><h3>7. Statistical uncertainty</h3><p>Bootstrap CIs, paired comparison, ranking stability.</p></div>
     <div class="card"><h3>8. Dataset card + manifest</h3><p>Purpose, known issues, non-goals, hashes, reproduce commands.</p></div>
@@ -95,12 +95,16 @@
   leakage defect, including one the deduplication ladder is provably blind to;
   Milestone 6 added the fourth — the <a href="label-audit.html">label audit</a>, five
   checks plus a deterministic adjudication queue, honest that label <em>truth</em> is
-  invisible to all of them; and Milestone 7 landed the first stage that <em>changes</em>
+  invisible to all of them; Milestone 7 landed the first stage that <em>changes</em>
   the data rather than describing it — the <a href="splits.html">split builder</a>, whose
   five strategies share one algorithm and differ only in which dependence between examples
   they refuse to cut through, and which verifies every build by re-running the leakage
-  checks over its own output. The
-  remaining audit subsystems follow milestone by milestone — see
+  checks over its own output; and Milestone 8 added
+  <a href="difficulty.html">difficulty calibration</a> — a transparent surface proxy, and a
+  permutation test that <strong>falsifies it</strong>: on these fixtures the proxy's ranking
+  is indistinguishable from a random ranking of the declared difficulty tags, because what
+  it really measures is task family. The score ships, reported and explicitly uncertified.
+  The remaining audit subsystems follow milestone by milestone — see
   <a href="milestones.html">Milestones</a> and the <code>docs/PLAN.md</code> build
   contract.</p>
 

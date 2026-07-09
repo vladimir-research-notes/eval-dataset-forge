@@ -70,6 +70,31 @@ at all. Every planted duplicate in the fixtures carries a fresh `source_id`, so 
 source-grouped strategy leaves all of them free to straddle — and on three of the five
 fixtures produces a bit-for-bit identical assignment to `random`.
 
+## The difficulty score does not measure difficulty
+
+On the committed fixtures the heuristic difficulty proxy's ranking is **not
+distinguishable from a random ranking** of the hand-assigned `difficulty_tags`: Spearman
+ρ = +0.097, permutation p = 0.497 over 51 labelled examples. Sweeping the whole weight
+simplex does not rescue it — 94% of 2000 draws land inside |ρ| < 0.2. What the score does
+measure is `task_family`, which explains 43% of its variance against 1% of the declared
+label's. The highest-scoring example in the corpus is a paraphrase of FizzBuzz, declared
+`easy`.
+
+The score is therefore shipped, reported, and explicitly **not certified**:
+`DifficultyReport.trustworthy` is `False`, `evalforge difficulty --fail-on-uncalibrated`
+exits 1, and the heuristic bucket must not be used as a difficulty label. Difficulty
+stratification in the split builder reads the *declared* tags for exactly this reason.
+
+Two honest caveats on the null itself. It is consistent with "the heuristic is wrong"
+*and* with "the tags are noisy" — the corpus has three `hard` examples and cannot separate
+the two. And the corpus is too small either way: detecting an effect of the observed size
+at 80% power would need roughly 824 labelled examples. See [`DIFFICULTY.md`](DIFFICULTY.md).
+
+Relatedly, this stage inherits a defect from the label audit: an example whose gold answer
+is missing scores at the floor of the `output_complexity` signal and therefore looks
+*easy*. The two lowest-scoring examples in the corpus are both examples with an absent
+gold answer.
+
 ## Statistics quantify sampling noise only
 
 Bootstrap CIs and ranking-stability checks describe uncertainty over the *given*

@@ -180,9 +180,25 @@
   honest that its zero is inherited from a heuristic. 723 tests. See the
   <a href="splits.html">Splits</a> page.</p>
 
-  <h3>Milestone 8 — Difficulty calibration</h3>
-  <p>Compute the transparent difficulty proxy from documented surface signals,
-  bucket it, and report the per-dataset and per-split difficulty distribution.</p>
+  <h3>Milestone 8 — Difficulty calibration <span class="status done">done</span></h3>
+  <p>A transparent, model-free difficulty proxy from five documented surface signals,
+  log-compressed so the score is dataset-independent, with <code>score</code> exactly the
+  sum of its per-signal components. Three bucketings, tie-safe. Then the half that matters:
+  a calibration harness that asks whether the proxy's ranking is distinguishable from a
+  <em>random</em> ranking of the hand-assigned tags — and reports that <strong>it is
+  not</strong> (ρ = +0.097, permutation p = 0.497, n = 51). The score is a
+  <strong>task-family detector</strong>: <code>task_family</code> explains 43% of its
+  variance and 1% of the declared label's, and the corpus's highest-scoring example is a
+  paraphrase of FizzBuzz declared <code>easy</code>. Six controls make the null believable
+  (permutation test, Bonferroni, within-family control, η² on both sides, marginal-matched
+  accuracy, a 2000-draw weight-simplex sweep), and a positive control proves the harness can
+  still say yes. Two results worth reading twice: <strong>the calibration target must never
+  be a scoring signal</strong> — leaking the declared bucket in at weight 0.15 lifts ρ from
+  +0.10 to +0.49 — which settles Milestone 7's open question by measurement; and a
+  <strong>missing gold answer makes an example look easy</strong>, so Milestone 6's defect
+  corrupts this stage's score. <code>trustworthy</code> is False,
+  <code>--fail-on-uncalibrated</code> exits 1, and nothing downstream consumes the bucket as
+  a label. 163 tests. See the <a href="difficulty.html">Difficulty</a> page.</p>
 
   <h3>Milestone 9 — Statistics &amp; ranking stability</h3>
   <p>Bootstrap confidence intervals, paired system comparison, ranking stability

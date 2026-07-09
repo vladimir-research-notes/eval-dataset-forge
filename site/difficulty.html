@@ -29,46 +29,183 @@
   </nav>
 </header>
 <main>
-  <p><span class="status pending">implemented in Milestone 8</span></p>
+  <p><span class="status done">implemented in Milestone 8</span></p>
   <h1>Difficulty calibration</h1>
-  <p class="lede">A benchmark that is all-easy or all-hard stops discriminating
-  between systems. We estimate a transparent, model-free difficulty
-  <em>proxy</em> per example so a dataset's difficulty distribution can be
-  inspected and balanced.</p>
+  <p class="lede">A benchmark that is all-easy or all-hard stops discriminating between
+  systems. So we estimate a transparent, model-free difficulty <em>proxy</em> per example
+  and report the distribution it induces — and then we check whether the proxy means
+  anything. On these fixtures it does not, and this page explains how we know.</p>
 
-  <h2>Signals (documented weights)</h2>
-  <ul>
-    <li>input length (tokens/characters)</li>
-    <li>expected-output complexity (length / structure)</li>
-    <li>heuristic reasoning-step count</li>
-    <li>evidence-item count</li>
-    <li>tool-use requirement (from metadata)</li>
-    <li>ambiguity / hard tags</li>
-    <li>manually assigned fixture difficulty (as a sanity check)</li>
-  </ul>
-  <p>Each <code>DifficultyScore</code> records the overall score, the assigned
-  bucket (easy/medium/hard), the per-signal contributions, and the method — so
-  the number is fully explainable.</p>
+  <div class="callout warn"><strong>The headline.</strong> The heuristic's ranking is
+  <strong>not distinguishable from a random ranking</strong> of the hand-assigned
+  <code>difficulty_tags</code>: Spearman ρ = <strong>+0.097</strong>, permutation
+  p = <strong>0.497</strong>, n = 51. What it measures instead is
+  <code>task_family</code> — 43% of the score's variance, against 1% of the declared
+  label's. The single highest-scoring example in the corpus is a paraphrase of FizzBuzz,
+  declared <code>easy</code>.</div>
 
-  <h2>Calibration</h2>
-  <p>"Calibration" here means checking that the heuristic buckets line up with any
-  available signal of true difficulty (manual fixture labels, or — in a future,
-  optional mode — observed pass rates). We report the agreement; we do not claim
-  the heuristic recovers true difficulty.</p>
+  <h2>The score</h2>
+  <p>Five surface signals, each compressed to <code>[0, 1]</code> and combined by fixed,
+  documented weights. Each signal states the difficulty hypothesis it encodes, so a reader
+  can judge the hypothesis rather than the arithmetic.</p>
+  <table>
+    <tr><th>signal</th><th>weight</th><th>cap</th><th>raw quantity</th></tr>
+    <tr><td><code>input_length</code></td><td>0.20</td><td>32 tokens</td><td>word tokens in <code>input</code></td></tr>
+    <tr><td><code>output_complexity</code></td><td>0.20</td><td>32 tokens</td><td>word tokens in the canonical <code>expected_output</code></td></tr>
+    <tr><td><code>reasoning_steps</code></td><td>0.30</td><td>4 cues</td><td>sequential / enumeration / aggregation cues</td></tr>
+    <tr><td><code>evidence_items</code></td><td>0.15</td><td>4 items</td><td>retrieval passages + annotated entities</td></tr>
+    <tr><td><code>tool_use</code></td><td>0.15</td><td>indicator</td><td><code>metadata</code> declares a tool/lookup requirement</td></tr>
+  </table>
 
-  <div class="callout warn">The score is a surface-feature proxy: a short prompt
-  can be very hard and a long one trivial. Weights are hand-chosen and documented,
-  not learned. IRT-style difficulty from real response data is a future
-  direction.</div>
+  <p>Three properties are load-bearing. <strong>The score is exactly the sum of its
+  components</strong>, bit-for-bit — nothing is rounded, because rounding to six places
+  breaks the equality and with it the explainability claim. <strong>Counts are
+  log-compressed, not min–maxed</strong> (<code>log1p(x)/log1p(cap)</code>), so no corpus
+  statistic enters the score and a score means the same thing in every dataset. And
+  <strong>no signal reads <code>difficulty_tags</code></strong>.</p>
+
+  <h2>Why the scorer is blind to the labels</h2>
+  <p>An earlier design listed the <code>ambiguous</code>/<code>hard</code> tags and the
+  hand-assigned fixture difficulty as <em>scoring</em> signals, while also proposing to
+  sanity-check the score against those same labels. That is circular. Both were removed,
+  and the cost of forgetting is measurable — blending the declared bucket back into the
+  score:</p>
+  <table>
+    <tr><th>leak weight</th><th>reported ρ</th><th>honest ρ</th></tr>
+    <tr><td>0.00</td><td>+0.097</td><td>+0.097</td></tr>
+    <tr><td>0.05</td><td>+0.290</td><td>+0.097</td></tr>
+    <tr><td>0.15</td><td><strong>+0.491</strong></td><td>+0.097</td></tr>
+    <tr><td>0.30</td><td><strong>+0.770</strong></td><td>+0.097</td></tr>
+  </table>
+  <p>A 15% leak turns a heuristic indistinguishable from noise into one that would have
+  been written up as working. A test asserts that rewriting an example's declaration
+  leaves its score bit-identical.</p>
+
+  <h2>Calibration: a falsifiable question</h2>
+  <p>Every other stage can be scored against defects planted in the fixtures. A difficulty
+  proxy cannot — there is no ground-truth difficulty, only what an author wrote down. So
+  the harness asks: <em>is the heuristic's ranking distinguishable from a random ranking of
+  the declared labels?</em> and answers with a permutation test.</p>
+
+  <table>
+    <tr><th>quantity</th><th>value</th><th>reading</th></tr>
+    <tr><td>Spearman ρ (score vs declared)</td><td><strong>+0.097</strong> (p = <strong>0.497</strong>)</td><td>not distinguishable from chance</td></tr>
+    <tr><td>within-family ρ (size-weighted)</td><td>+0.030</td><td>collapses when family is held constant</td></tr>
+    <tr><td>family-only <em>oracle</em> baseline</td><td>+0.162</td><td>family alone barely predicts difficulty either</td></tr>
+    <tr><td>η² of the <strong>score</strong> by <code>task_family</code></td><td><strong>0.434</strong></td><td>the score is 43% task family</td></tr>
+    <tr><td>η² of the <strong>declared label</strong> by <code>task_family</code></td><td><strong>0.014</strong></td><td>declared difficulty is 1% task family</td></tr>
+    <tr><td>marginal-matched bucket accuracy</td><td>0.529</td><td>below the 0.569 of "call everything easy"</td></tr>
+    <tr><td>n needed for 80% power</td><td>~824</td><td>the corpus has 51</td></tr>
+    <tr><td>weight-simplex sweep (2000 draws)</td><td>median +0.024, max +0.286</td><td>94% inside |ρ| &lt; 0.2</td></tr>
+  </table>
+
+  <p>Six controls, each against a different way of fooling oneself: a permutation test
+  rather than a bare ρ; <strong>Bonferroni</strong> over the four testable signals
+  (<code>input_length</code> clears α at p = 0.043 and dies at p = 0.174 corrected); a
+  <strong>within-family control</strong>; <strong>η² on both sides</strong>, so a family
+  effect cannot masquerade as a difficulty effect; a <strong>marginal-matched
+  bucketing</strong>, so a bad marginal is not mistaken for a bad ranking; and a
+  <strong>sweep of the whole weight simplex</strong>, so the null is a property of the
+  signals rather than of one hand-chosen vector.</p>
+
+  <h3>Per-signal</h3>
+  <table>
+    <tr><th>signal</th><th>ρ</th><th>p</th><th>Bonferroni</th><th>verdict</th></tr>
+    <tr><td><code>input_length</code></td><td>+0.283</td><td>0.043</td><td>0.174</td><td>clears α, not Bonferroni</td></tr>
+    <tr><td><code>output_complexity</code></td><td>−0.138</td><td>0.324</td><td>1.000</td><td><strong>anti-correlated</strong></td></tr>
+    <tr><td><code>reasoning_steps</code></td><td>+0.192</td><td>0.186</td><td>0.745</td><td>no effect</td></tr>
+    <tr><td><code>evidence_items</code></td><td>−0.163</td><td>0.260</td><td>1.000</td><td><strong>anti-correlated</strong></td></tr>
+    <tr><td><code>tool_use</code></td><td>—</td><td>—</td><td>—</td><td><strong>inert</strong>: fires on 0 / 56</td></tr>
+  </table>
+  <p><code>tool_use</code> has zero variance here: a weighted signal with zero variance adds
+  a constant, so it changes no ranking and no bucket. It is reported inert rather than
+  credited, and a test proves that zeroing its weight leaves every bucket in place.</p>
+
+  <h2>The harness can say yes</h2>
+  <p>A calibration harness that only ever answers "no" proves nothing. A synthetic corpus
+  of 60 examples whose prompt length really does track declared difficulty comes back
+  ρ &gt; 0.9, p &lt; 0.01, <code>trustworthy = True</code>; shuffle its labels and it does
+  not. Both are tests.</p>
+
+  <h2>Bucketing</h2>
+  <table>
+    <tr><th>bucketing</th><th>easy</th><th>medium</th><th>hard</th><th>cut points</th></tr>
+    <tr><td><code>quantile</code> (default)</td><td>18</td><td>19</td><td>19</td><td>0.182 / 0.301</td></tr>
+    <tr><td><code>fixed</code></td><td>45</td><td>11</td><td><strong>0</strong></td><td>0.333 / 0.667</td></tr>
+    <tr><td><code>marginal</code></td><td>32</td><td>21</td><td>3</td><td>0.274 / 0.524</td></tr>
+    <tr><td><em>declared</em></td><td>29</td><td>19</td><td>3</td><td>(5 unlabelled)</td></tr>
+  </table>
+  <p><strong>Equal scores always get equal buckets</strong> — every cut is
+  <code>score &lt; cut</code>, so no boundary splits a tie group, and the corpus has two tie
+  groups of four. The price is that <code>quantile</code> cannot hit equal frequencies, so
+  the report states the sizes it <em>achieved</em>. <code>fixed</code> leaves
+  <code>hard</code> empty because the maximum score is 0.658: an absolute cut point on a
+  log-compressed scale is unreachable for short-answer data. A warning fires, and that is
+  why <code>quantile</code> is the default.</p>
+
+  <h2>What the verdict changes</h2>
+  <p><code>DifficultyReport.trustworthy</code> is a single bit — true only when the
+  correlation clears α, the sample clears 30 labelled examples, and the marginal-matched
+  bucketing beats the majority baseline. Here it is <strong>False</strong>, and that
+  forbids exactly one thing: <em>the heuristic bucket must not be used as a difficulty
+  label</em>. <code>evalforge difficulty --fail-on-uncalibrated</code> exits 1.</p>
+  <p>The one downstream consumer that could have been fooled is difficulty stratification
+  in the <a href="splits.html">split builder</a>. Milestone 7 chose the <em>declared</em>
+  tags, arguing that a heuristic must not define the test set it is later evaluated on.
+  This milestone turns that argument into a measurement — and finds a second, stronger
+  reason: stratifying on the heuristic bucket would have stratified on
+  <code>task_family</code> a second time, under a different name.</p>
+  <p>Nothing is deleted or imputed. Every example still gets a bucket, because the release
+  builder and the dataset card must show a reader exactly what the audit saw.</p>
+
+  <h2>A defect inherited from the label audit</h2>
+  <p>An absent <code>expected_output</code> scores zero on <code>output_complexity</code> —
+  the floor of the signal — so the examples whose labels most need attention sink to the
+  easy end of the ranking.</p>
+  <table>
+    <tr><th>example</th><th>declared</th><th>heuristic bucket</th><th>rank (1 = easiest of 56)</th></tr>
+    <tr><td><code>agent-009</code></td><td><em>none</em></td><td>easy</td><td><strong>1</strong></td></tr>
+    <tr><td><code>qa-010</code></td><td>medium</td><td>easy</td><td><strong>2</strong></td></tr>
+    <tr><td><code>bio-008</code></td><td>medium</td><td>easy</td><td>7</td></tr>
+    <tr><td><code>ret-005</code></td><td><strong>hard</strong></td><td>medium</td><td>32</td></tr>
+  </table>
+  <p>All are examples the <a href="label-audit.html">label audit</a> flags. Milestone 6's
+  <code>MISSING</code> defect corrupts Milestone 8's score; the report warns rather than
+  imputing a value.</p>
+
+  <div class="callout warn"><strong>Limitations.</strong> The score is a surface proxy and
+  is fooled here systematically, not occasionally. The weights are hand-chosen, not learned
+  — fitting them to the 51 available labels would be fitting to the test set. The
+  calibration target is one author's unaudited opinion: three <code>hard</code> examples out
+  of 56, five with no declaration. A null result is consistent with "the heuristic is wrong"
+  <em>and</em> with "the tags are noisy", and this corpus cannot separate the two. IRT-style
+  difficulty from observed pass rates needs response data the offline default does not
+  have.</div>
 
   <h3>Relevant files</h3>
   <ul class="files">
-    <li>src/eval_dataset_forge/difficulty/{heuristics,calibration,buckets}.py</li>
+    <li>src/eval_dataset_forge/difficulty/{heuristics,buckets,calibration}.py</li>
+    <li>src/eval_dataset_forge/difficulty/__init__.py — <code>DifficultyReport</code>, <code>score_dataset()</code></li>
+    <li>tests/test_difficulty.py — 163 tests</li>
     <li>docs/DIFFICULTY.md</li>
   </ul>
+
   <h3>Status</h3>
-  <p>Design fixed in <code>docs/DIFFICULTY.md</code>; implementation + distribution
-  reports land in Milestone 8.</p>
+  <p>Complete. 163 tests, all CPU-only and offline. The score, the three bucketings, the
+  distribution reports, the calibration harness, and the
+  <code>--fail-on-uncalibrated</code> gate are implemented; the verdict on the committed
+  fixtures is <strong>not calibrated</strong>, by measurement.</p>
+
+  <h3>Open questions</h3>
+  <ul>
+    <li>Should the bucket ship at all when <code>trustworthy</code> is False? Emitting
+      nothing would hide the evidence for the warning; emitting it risks a skimming reader.</li>
+    <li>The null is <strong>not attributable</strong> — heuristic or labels? A second
+      annotator over 56 examples would settle it.</li>
+    <li>Should <code>tool_use</code> (inert here) and <code>evidence_items</code> (a family
+      indicator here) stay in the default weights? Dropping them would flatter these
+      fixtures and might be wrong for a corpus that populates that metadata.</li>
+  </ul>
 </main>
 <footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
 </body>

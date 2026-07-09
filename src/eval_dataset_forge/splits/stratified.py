@@ -15,10 +15,17 @@ Two facets ship, both read straight off the example:
     The example's **declared** ``difficulty_tags`` filtered to
     :class:`~eval_dataset_forge.schemas.DifficultyBucket`. Examples carrying no
     bucket tag form their own ``unlabelled`` stratum rather than being imputed. This
-    is deliberately the *declared* difficulty, not a modelled one: the calibrated
-    difficulty score lands in Milestone 8, and stratifying on a score this module
-    computed itself would let a difficulty heuristic quietly define the test set it
-    is later evaluated on.
+    is deliberately the *declared* difficulty, not a modelled one: stratifying on a
+    score the pipeline computed itself would let a difficulty heuristic quietly define
+    the test set it is later evaluated on.
+
+    Milestone 8 turned that argument into a measurement, and it holds for a second,
+    stronger reason. The heuristic difficulty score's ranking is **not distinguishable
+    from a random ranking** of the declared labels (Spearman rho = +0.10, permutation
+    p = 0.50, n = 51), and ``task_family`` explains 43% of its variance against 1% of
+    the declared difficulty's. Stratifying on it would have stratified on task family
+    a second time, under a different name. See
+    :mod:`eval_dataset_forge.difficulty.calibration`.
 
 **Stratify on one facet, not two.** The default is ``("task_family",)``, and the
 reason is measured rather than assumed. Strata multiply when facets are combined while
@@ -65,21 +72,20 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
 
-from eval_dataset_forge.schemas import DatasetExample, DifficultyBucket
+from eval_dataset_forge.difficulty.buckets import (
+    DIFFICULTY_ORDER,
+    UNLABELLED,
+    declared_bucket,
+)
+from eval_dataset_forge.schemas import DatasetExample
 from eval_dataset_forge.splits.assignment import DEFAULT_SEED, Assignment, assign_blocks
 from eval_dataset_forge.splits.blocks import Block, singleton_blocks
 
-# Increasing order of difficulty. An example tagged with more than one bucket is
-# stratified as the hardest of them: a benchmark that mislabels a hard item as easy
-# hurts more than the reverse.
-DIFFICULTY_ORDER: tuple[str, ...] = (
-    str(DifficultyBucket.EASY),
-    str(DifficultyBucket.MEDIUM),
-    str(DifficultyBucket.HARD),
-)
-
-# Stratum name for an example carrying no bucket tag. Not imputed — see the docstring.
-UNLABELLED = "unlabelled"
+# ``DIFFICULTY_ORDER`` (easy < medium < hard), ``UNLABELLED``, and ``declared_bucket`` now
+# live in :mod:`eval_dataset_forge.difficulty.buckets` and are re-exported here. Milestone
+# 8 moved them: difficulty sits upstream of splits in the pipeline (``docs/PLAN.md`` §4),
+# and the calibration target and this stratification facet must read the declaration the
+# same way or the two milestones would disagree about what ``hard`` means.
 
 # Facets `stratum_of` understands, and always reports the achieved distribution of.
 FACETS: tuple[str, ...] = ("task_family", "difficulty")
@@ -89,17 +95,6 @@ FACETS: tuple[str, ...] = ("task_family", "difficulty")
 DEFAULT_STRATIFY_BY: tuple[str, ...] = ("task_family",)
 
 _FACET_SEPARATOR = "|"
-
-
-def declared_bucket(example: DatasetExample) -> DifficultyBucket | None:
-    """The hardest :class:`DifficultyBucket` declared in ``difficulty_tags``, if any.
-
-    Tags outside the bucket vocabulary (``coding``, ``ambiguous``, …) are ignored:
-    they describe the example, not its difficulty.
-    """
-    tags = {tag.lower() for tag in example.difficulty_tags}
-    declared = [name for name in DIFFICULTY_ORDER if name in tags]
-    return DifficultyBucket(declared[-1]) if declared else None
 
 
 def facet_value(example: DatasetExample, facet: str) -> str:

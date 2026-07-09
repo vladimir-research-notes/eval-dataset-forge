@@ -89,6 +89,21 @@
       <em>metadata</em> describes may close nothing at all: every planted duplicate carries a
       fresh <code>source_id</code>, so source-grouping leaves all of them free to straddle
       and, on three of five fixtures, is bit-for-bit identical to a random split.</li>
+    <li><strong>The <a href="difficulty.html">difficulty score</a> does not measure
+      difficulty.</strong> On these fixtures its ranking is not distinguishable from a random
+      ranking of the hand-assigned tags (Spearman ρ = +0.097, permutation p = 0.497, n = 51),
+      and sweeping the whole weight simplex does not rescue it. What it measures is
+      <code>task_family</code>, which explains 43% of the score's variance against 1% of the
+      declared label's; the highest-scoring example in the corpus is a paraphrase of FizzBuzz
+      declared <code>easy</code>. The score is therefore shipped, reported, and explicitly
+      <strong>not certified</strong>: <code>trustworthy</code> is False,
+      <code>--fail-on-uncalibrated</code> exits 1, and nothing downstream consumes the bucket
+      as a label. Two caveats on the null itself: it is equally consistent with "the heuristic
+      is wrong" and "the tags are noisy" — three <code>hard</code> examples cannot separate
+      them — and detecting an effect of the observed size at 80% power would need roughly 824
+      labelled examples. The stage also inherits a defect from the label audit: an example
+      with a missing gold answer scores at the floor of the output-complexity signal and so
+      looks <em>easy</em>.</li>
   </ul>
 
   <h2>Non-goals</h2>

@@ -263,6 +263,91 @@ Reproduce:
 python3 -m pytest -q tests/test_splits.py     # 723 tests
 ```
 
+### Difficulty calibration (Milestone 8)
+
+This stage is not scored against `defects.yaml` either — there is no ground-truth
+difficulty planted in the fixtures, only the `difficulty_tags` their author wrote down. So
+it is scored against a falsifiable question: **is the heuristic's ranking distinguishable
+from a random ranking of those declared labels?** Full method, controls, and failure-mode
+analysis: [`DIFFICULTY.md`](DIFFICULTY.md).
+
+**It is not.** Over the 51 labelled examples of the pooled corpus:
+
+| quantity | value | reading |
+|---|---|---|
+| Spearman ρ (score vs declared) | **+0.097** (p = **0.497**) | not distinguishable from chance |
+| within-family ρ (size-weighted) | +0.030 | collapses when family is held constant |
+| η² of the **score** by `task_family` | **0.434** | the score is 43% task family |
+| η² of the **declared label** by `task_family` | **0.014** | declared difficulty is 1% task family |
+| marginal-matched bucket accuracy | 0.529 | below the 0.569 of "call everything easy" |
+| n needed for 80% power | ~824 | the corpus has 51 |
+| weight-simplex sweep (2000 draws) | median +0.024, max +0.286 | 94% inside \|ρ\| < 0.2 |
+
+Four results are worth stating precisely.
+
+**The difficulty heuristic is a task-family detector.** Its dominant axis is length;
+length separates task families; and declared difficulty is nearly orthogonal to task
+family (η² = 0.014). The single highest-scoring example in the corpus is `agent-002` — a
+paraphrase of FizzBuzz, declared `easy` by its author. Holding family constant collapses
+the correlation to +0.030, and on `retrieval` it inverts to −0.491.
+
+**No reweighting rescues it, so the null is a property of the signals.** 94% of 2000
+Dirichlet draws from the weight simplex land inside |ρ| < 0.2, and the best draw — chosen
+*in sample*, hence an upper bound — reaches only +0.286. Of the five signals, `tool_use`
+fires on **0 of 56** examples and is reported inert rather than credited; `output_complexity`
+(−0.138) and `evidence_items` (−0.163) are **anti-correlated** with declared difficulty;
+and `input_length` alone clears α (p = 0.043) but not Bonferroni over the four testable
+signals (p = 0.174).
+
+**The calibration target must never be a scoring signal.** An earlier design listed the
+hand-assigned difficulty as both an input to the score and the sanity check on it.
+Blending the declared bucket back in at a weight of 0.15 lifts ρ from **+0.10 to +0.49**
+(at 0.30, to +0.77) — a null heuristic reading as a working one. The scorer therefore
+never reads `difficulty_tags`, and a test asserts that rewriting an example's declaration
+leaves its score untouched.
+
+**A missing gold answer makes an example look easy.** An absent `expected_output` scores
+zero on `output_complexity`, so the four examples Milestone 6 flags `MISSING` sink toward
+the easy end: `agent-009` ranks **1 of 56** and `qa-010` ranks **2 of 56**. Milestone 6's
+label defect corrupts Milestone 8's score, and the report says so instead of imputing.
+
+Consequently `DifficultyReport.trustworthy` is **False** on every fixture and on the
+pooled corpus, and `evalforge difficulty --fail-on-uncalibrated` exits 1. That is the
+intended outcome. It vindicates Milestone 7's decision to stratify on the *declared* tags
+rather than a modelled bucket — with a measurement, not an argument. The harness is not
+merely pessimistic: a synthetic corpus whose difficulty genuinely is surface-driven comes
+back ρ > 0.9, `trustworthy = True`.
+
+Per-fixture, every dataset is underpowered on its own (9–12 labels):
+
+| fixture | labelled | ρ | p | verdict |
+|---|---|---|---|---|
+| `qa_toy` | 12 | −0.080 | 0.789 | not calibrated |
+| `agent_tasks_toy` | 11 | +0.230 | 0.516 | not calibrated |
+| `retrieval_toy` | 10 | −0.491 | 0.164 | not calibrated |
+| `bio_toy` | 9 | +0.174 | 0.667 | not calibrated |
+| `safety_toy` | 9 | +0.365 | 0.357 | not calibrated |
+| **all five pooled** | 51 | **+0.097** | **0.497** | **not calibrated** |
+
+Bucket distributions on the pooled corpus (the milestone's reporting deliverable):
+
+| bucketing | easy | medium | hard | cut points |
+|---|---|---|---|---|
+| `quantile` (default) | 18 | 19 | 19 | 0.182 / 0.301 |
+| `fixed` | 45 | 11 | **0** | 0.333 / 0.667 |
+| `marginal` | 32 | 21 | 3 | 0.274 / 0.524 |
+| *declared* | 29 | 19 | 3 | (5 unlabelled) |
+
+`fixed` leaves `hard` empty because the maximum score on this corpus is 0.658: an absolute
+cut point on a log-compressed scale is unreachable for short-answer data. A warning fires,
+and `quantile` is the default for that reason.
+
+Reproduce:
+
+```bash
+python3 -m pytest -q tests/test_difficulty.py # 163 tests
+```
+
 ## What will be reported here
 
 - Per-fixture counts of exact/near duplicates, leakage flags, label warnings, PII

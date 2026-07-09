@@ -167,6 +167,53 @@ def cmd_build_splits(args: argparse.Namespace) -> int:
     return 1 if args.fail_on_leakage and report.residual_overlap else 0
 
 
+def _parse_weights(text: str) -> dict[str, float]:
+    """Parse ``input_length=0.5,reasoning_steps=0.5`` into a weight mapping."""
+    pairs = [chunk.strip() for chunk in text.split(",") if chunk.strip()]
+    if not all("=" in pair for pair in pairs):
+        raise argparse.ArgumentTypeError(
+            "--weights wants name=value pairs, e.g. input_length=0.5,reasoning_steps=0.5"
+        )
+    try:
+        return {name.strip(): float(value) for name, value in (p.split("=", 1) for p in pairs)}
+    except ValueError as error:  # non-numeric value
+        raise argparse.ArgumentTypeError(f"bad --weights value: {error}") from None
+
+
+def cmd_difficulty(args: argparse.Namespace) -> int:
+    """Score, bucket, and calibrate a dataset's difficulty; report the distribution.
+
+    Exit code is 0 unless ``--fail-on-uncalibrated`` is set and the heuristic's ranking
+    cannot be distinguished from a random ranking of the declared ``difficulty_tags`` — the
+    check a CI job would gate on before letting anything downstream treat the heuristic
+    bucket as a difficulty label. On the committed fixtures that gate **fails**, by design:
+    see docs/DIFFICULTY.md. The difficulty package is imported lazily so the stdlib-only
+    commands keep working without the scientific stack.
+    """
+    from eval_dataset_forge.datasets import loader
+    from eval_dataset_forge.difficulty import format_report, score_dataset, write_report
+
+    examples = loader.load_examples(args.dataset)
+    report = score_dataset(
+        examples,
+        weights=_parse_weights(args.weights) if args.weights else None,
+        bucketing=args.bucketing,
+        alpha=args.alpha,
+        n_resamples=args.resamples,
+        seed=args.seed,
+    )
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2))
+    else:
+        print(format_report(report))
+
+    if args.out:
+        written = write_report(report, args.out)
+        print(f"\nwrote {len(written)} difficulty artifact(s) under {args.out}")
+    return 1 if args.fail_on_uncalibrated and not report.trustworthy else 0
+
+
 def _cmd_pending(name: str):
     def handler(_args: argparse.Namespace) -> int:
         milestone = _PENDING[name]
@@ -260,6 +307,50 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit the report as JSON instead of text"
     )
     p_splits.set_defaults(func=cmd_build_splits)
+
+    p_difficulty = sub.add_parser(
+        "difficulty",
+        help="score, bucket, and calibrate example difficulty; report the distribution",
+    )
+    p_difficulty.add_argument("--dataset", required=True, help="path to examples.jsonl")
+    p_difficulty.add_argument(
+        "--out", help="directory for difficulty_report.json and difficulty_scores.jsonl"
+    )
+    p_difficulty.add_argument(
+        "--bucketing",
+        default="quantile",
+        choices=["quantile", "fixed", "marginal"],
+        help="how the two bucket cut points are chosen (default: quantile)",
+    )
+    p_difficulty.add_argument(
+        "--weights",
+        metavar="NAME=VALUE,…",
+        help="override the documented signal weights; must be non-negative and sum to 1.0",
+    )
+    p_difficulty.add_argument(
+        "--seed", type=int, default=0, help="seed for the permutation tests (default: 0)"
+    )
+    p_difficulty.add_argument(
+        "--resamples",
+        type=int,
+        default=10_000,
+        help="permutation resamples for the calibration p-values (default: 10000)",
+    )
+    p_difficulty.add_argument(
+        "--alpha",
+        type=float,
+        default=0.05,
+        help="significance level for the calibration verdict (default: 0.05)",
+    )
+    p_difficulty.add_argument(
+        "--fail-on-uncalibrated",
+        action="store_true",
+        help="exit 1 when the heuristic ranking is indistinguishable from a random one",
+    )
+    p_difficulty.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of text"
+    )
+    p_difficulty.set_defaults(func=cmd_difficulty)
 
     p_card = sub.add_parser("dataset-card", help="generate a dataset card for a release")
     p_card.add_argument("--release", required=True, help="path to a release directory")
