@@ -23,6 +23,7 @@
     <a href="statistics.html">Statistics</a>
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
+    <a href="integration.html">Integration</a>
     <a href="results.html">Results</a>
     <a href="limitations.html" class="active">Limitations</a>
     <a href="roadmap.html">Roadmap</a>
@@ -157,7 +158,31 @@
       unverified curator claims; the card labels them as such and names any left blank, but nothing
       checks whether they are <em>true</em>. And because <code>AuditResult</code> records the
       difficulty distribution but not the calibration verdict, the card carries an unconditional
-      note rather than a warning that fires only when the heuristic failed its permutation test.</li>
+      note rather than a warning that fires only when the heuristic failed its permutation test.
+      Milestone 13 shows the same missing field also denies every downstream consumer a verdict:
+      <code>difficulty_is_calibrated</code> is permanently <code>undecidable</code>.</li>
+    <li><strong>An "optional accelerator" changes the answer, not the speed.</strong>
+      <code>scikit-learn</code> is documented as an optional accelerator with a pure-Python fallback.
+      It is a <em>different detector</em>: near-duplicate detection resolves to <code>tfidf</code> iff
+      it is importable, the two methods disagree, duplicates become blocks, the adversarial split will
+      not cut through a block, and <code>eval_id</code> folds the split in. Rebuilding
+      <code>bio_toy</code> from identical bytes, an identical command and an identical seed gives the
+      same <code>content_id</code> and a <strong>different <code>eval_id</code></strong> without the
+      package. A release <em>records</em> the method that ran; nothing in a release directory can
+      <em>verify</em> it, because verifying it means rebuilding. See
+      <a href="integration.html">Integration contracts</a>.</li>
+    <li><strong>Dedup findings do not compose, so neither do the counts derived from them.</strong>
+      TF-IDF's idf is computed over the collection, so a near-duplicate verdict is a property of a pair
+      <em>and its corpus</em>. The five fixtures hold 45 independent blocks apart and 44 pooled at 56
+      examples either way, with zero cross-fixture duplicate edges; and <code>safety_toy</code> passes a
+      one-cluster near-duplicate budget alone and fails it inside the pooled corpus. Example count is
+      additive; statistical power is not. Under the <code>jaccard</code> fallback both properties hold —
+      composability is a property of the similarity function. <strong>Audit the corpus you will score
+      on.</strong></li>
+    <li><strong><code>audit.json</code> records what was found, never what was looked at.</strong> Zero
+      findings over zero retrieved passages and zero findings over a thousand clean passages serialize
+      identically. Milestone 13's gate turns this into a third verdict, <code>undecidable</code>, which
+      never counts as a pass — but the underlying artifact still carries no coverage record.</li>
   </ul>
 
   <h2>Non-goals</h2>

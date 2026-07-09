@@ -699,6 +699,86 @@ PYTHONPATH=src python3 -m eval_dataset_forge audit \
 python3 -m pytest -q tests/test_audit.py       # 47 tests
 ```
 
+### Integration contracts (Milestone 13)
+
+Writing the five downstream contracts measured three things the pipeline had not stated.
+Full argument: [`INTEGRATION.md`](INTEGRATION.md).
+
+**1. The "optional accelerator" is a different detector.** `scikit-learn` is listed in
+`docs/PLAN.md` §3 as an optional accelerator with a pure-Python fallback. Rebuilding
+`bio_toy` from identical bytes, an identical command, and an identical seed:
+
+| | scikit-learn present | scikit-learn absent |
+|---|---|---|
+| `near_method` | `tfidf` | `jaccard` |
+| near-duplicate clusters | 1 (`bio-001` ≈ `bio-002`) | 0 |
+| independent blocks | 8 | 9 |
+| `content_id` | *identical* | *identical* |
+| `eval_id` | **different** | **different** |
+| held-out example set | **different** | **different** |
+
+`content_id` holding is correct. `eval_id` moving is also correct: these are not the same
+benchmark. What was false was `REPRODUCE.md`, which claimed the build was "deterministic
+given the same inputs and seed". The environment is an input, and the file now says so.
+`verify-release` runs no detector, so it still passes 10/10 without the accelerator —
+**verification is environment-independent; reproduction is not.**
+
+**2. Neither block counts nor gate verdicts survive a union.** The five fixtures are
+disjoint and share no example:
+
+| | examples | independent blocks |
+|---|---|---|
+| audited separately, summed (`tfidf`) | 56 | **45** |
+| audited as one corpus (`tfidf`) | 56 | **44** |
+| audited as one corpus (`jaccard`) | 56 | **46** |
+
+The pooled corpus contains **zero cross-fixture duplicate edges**. Merging five unrelated
+datasets found no duplicate *between* them and still changed one dataset's verdict *inside*
+itself — `{saf-004, saf-005}` grows to `{saf-004, saf-005, saf-007}` — because idf is
+computed over the collection. Correspondingly, `safety_toy` alone **passes** a
+`max_near_duplicate_clusters: 1` policy and the same ten rows **fail** it inside the pooled
+corpus. Under `jaccard`, which has no idf, both counts are equal: composability is a
+property of the similarity function. Example count is additive; statistical power is not.
+
+A verdict does not survive a **re-split** either, for four of the fourteen requirements — a
+bug in this milestone's own first draft, caught by checking a docstring instead of shipping
+it. Building `qa_toy` forty times with `--strategy random`, all forty releases share **one**
+`content_id`, seeds 9 and 35 *pass* `eval_splits_deduplicated`, and thirty-eight seeds *fail*
+it. `GateReport.scope` is therefore `eval_id` whenever a split-sensitive requirement ran, and
+it is derived from what executed rather than from `split_spec.strategy` — a strategy field is
+a claim, not evidence.
+
+**3. A gate needs a third verdict.** `pass` / `fail` / `undecidable`, and `undecidable`
+never counts as a pass. Two requirements reach it, for different reasons:
+`no_retrieval_contamination` is undecidable on `qa_toy` because no example carries
+passages (a fact about the corpus), and `difficulty_is_calibrated` is undecidable on
+*every* release this tool has built, because `audit.json` keeps the three difficulty
+bucket counts and drops the permutation test that says whether they mean anything (a fact
+about the release format). Milestone 11's review note already asked whether that field
+should exist; the contract makes the gap executable and gives it a second cost — a
+consumer cannot gate on the answer either.
+
+All five profiles reject the release built from the deliberately flawed `qa_toy` fixture —
+a gate that passed it would be broken. The positive control is a `--drop`-repaired release
+that passes.
+
+| profile | verdict | pass | fail | undecidable | blocking |
+|---|---|---|---|---|---|
+| `agent-control-bench` | **FAIL** | 4 | 2 | 0 | `no_exact_duplicates`, `no_answer_in_prompt` |
+| `bioagentbench` | **FAIL** | 3 | 3 | 0 | `no_exact_duplicates`, `no_label_conflicts`, `no_missing_labels` |
+| `code-agent-runtime` | **FAIL** | 3 | 3 | 0 | `no_missing_labels`, `no_answer_in_prompt`, `no_exact_duplicates` |
+| `llm-regression` | **FAIL** | 5 | 1 | 0 | `eval_split_is_rankable` — the `test` split holds **2 blocks**, not 30 |
+| `scientific-claim-verifier` | **FAIL** | 2 | 3 | 1 | 3 findings; `no_retrieval_contamination` undecidable |
+
+Reproduce:
+
+```bash
+python3 -m pytest -q tests/test_contracts.py               # 50 tests
+PYTHONPATH=src python3 -m eval_dataset_forge gate --list
+PYTHONPATH=src python3 -m eval_dataset_forge gate \
+  --release datasets/releases/qa_toy_v0.1.0 --profile llm-regression   # exit 1
+```
+
 ## Reproduce
 
 ```bash

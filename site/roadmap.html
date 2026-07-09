@@ -23,6 +23,7 @@
     <a href="statistics.html">Statistics</a>
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
+    <a href="integration.html">Integration</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html" class="active">Roadmap</a>
@@ -34,16 +35,21 @@
   <p class="lede">Where the project can go as a research contribution. These are
   open questions, not solved problems.</p>
 
-  <h2>Integration contracts (Milestone 13)</h2>
-  <p>eval-dataset-forge is designed to be a reusable dataset-quality layer. It
-  will define (without depending on) integration contracts for:</p>
+  <h2>Integration contracts <span class="status done">landed in Milestone 13</span></h2>
+  <p>eval-dataset-forge defines — without depending on — executable contracts for five
+  consumers, each a named profile of <code>evalforge gate</code>. Full argument and the three
+  measurements that came out of writing them: <a href="integration.html">Integration contracts</a>.</p>
   <ul>
     <li><strong>code-agent-runtime</strong> — audit agent-task benchmarks before they gate a run.</li>
     <li><strong>BioAgentBench</strong> — audit synthetic biomedical evidence tasks.</li>
-    <li><strong>LLM regression / observability</strong> — flag when a regression suite is too small or leaky to rank models.</li>
+    <li><strong>LLM regression / observability</strong> — refuse to rank models on a suite too small or leaky to rank them.</li>
     <li><strong>scientific-claim-verifier</strong> — audit claim/evidence datasets for label conflicts and leakage.</li>
     <li><strong>agent-control-bench</strong> — audit control/safety task sets.</li>
   </ul>
+  <p>Open, and deliberately not settled there: whether <code>audit.json</code> should carry the
+  difficulty-calibration verdict it currently computes and discards; whether the near-duplicate
+  default should trade TF-IDF's accuracy for Jaccard's composability; and whether any of the five
+  named projects would recognize the contract written on its behalf.</p>
 
   <h2>Research directions (docs/PAPER_PATH.md)</h2>
   <ul>

@@ -23,6 +23,7 @@
     <a href="statistics.html">Statistics</a>
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
+    <a href="integration.html">Integration</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html">Roadmap</a>
@@ -166,6 +167,22 @@
     intentionally out of scope for the offline build (see <a href="roadmap.html">Roadmap</a>).</li>
     <li><strong>Comparison is brute-force O(n²).</strong> The blocking / MinHash
     bucketing a large corpus would need is deliberately deferred, not claimed.</li>
+    <li><strong>Under TF-IDF, a duplicate report does not compose.</strong> The idf term is
+    computed over the collection, so a near-duplicate verdict is a property of a pair <em>and
+    its corpus</em>: <code>sim(saf-004, saf-007)</code> is <strong>0.2866</strong> inside
+    <code>safety_toy</code> and <strong>0.3438</strong> pooled, straddling the 0.30 threshold
+    with neither prompt changed. Auditing shards and unioning the findings is not auditing the
+    union — the five fixtures hold 45 independent blocks apart and 44 pooled — and appending
+    unrelated data can move an untouched example's block, hence its split, hence a release's
+    <code>eval_id</code>.</li>
+    <li><strong>The <code>jaccard</code> fallback is immune, and that is the problem.</strong>
+    Raw set overlap has no idf, so both properties above hold under it. The two methods return
+    <em>different duplicate reports</em>, not the same report at different speeds: on
+    <code>bio_toy</code>, <code>bio-001</code> ≈ <code>bio-002</code> clears 0.30 under TF-IDF
+    and not under Jaccard. Since <code>auto</code> picks TF-IDF iff scikit-learn is importable,
+    installing an "optional accelerator" changes which examples a release holds out. Every
+    release records <code>dependence.near_method</code>; see
+    <a href="integration.html">Integration contracts</a>.</li>
   </ul>
 
   <h3>Relevant files</h3>

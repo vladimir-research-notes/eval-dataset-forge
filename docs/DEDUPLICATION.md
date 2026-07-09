@@ -214,6 +214,32 @@ tokens; `bake` and `baking` are distinct tokens. This is why `bio_toy` and
 `safety_toy` score as low as they do, and why TF-IDF (which learns that `the` is
 worthless) outperforms raw overlap.
 
+**Under TF-IDF, a duplicate report does not compose.** The idf term is computed over
+the document collection, so a near-duplicate verdict is a property of a **pair and its
+corpus**. `sim(saf-004, saf-007)` is 0.2866 inside `safety_toy` and 0.3438 inside the
+pooled 56-example corpus — straddling the 0.30 threshold with neither prompt changed,
+because the boilerplate the two share is common within `safety_toy` and rare against the
+pooled vocabulary, and rarer means heavier.
+
+Two consequences, both pinned by `tests/test_contracts.py`:
+
+- **Auditing shards and unioning the findings is not auditing the union.** The five
+  fixtures hold 45 independent blocks apart and 44 pooled, at 56 examples either way.
+  Example count is additive; block count is not.
+- **Appending unrelated data changes a dataset's internal verdict.** The pooled corpus
+  contains *no* cross-fixture duplicate edge, and still merges `{saf-004, saf-005}` into
+  `{saf-004, saf-005, saf-007}`. Since the adversarial split derives its blocks from
+  duplicate clusters and `eval_id` folds the split in, appending unrelated examples can
+  move an untouched example's split and change a release's `eval_id`.
+
+**The `jaccard` fallback is immune, and that is the problem.** Raw set overlap has no idf,
+so its scores ignore the corpus and both properties above hold under it. The two methods
+therefore return *different duplicate reports*, not the same report at different speeds:
+on `bio_toy`, `bio-001` ~ `bio-002` clears 0.30 under TF-IDF and not under Jaccard. Since
+`resolve_near_method("auto")` picks TF-IDF iff scikit-learn is importable, **installing an
+"optional accelerator" changes which examples a release holds out**. See
+[`INTEGRATION.md`](INTEGRATION.md); every release records `dependence.near_method`.
+
 ## Reproduce
 
 ```bash

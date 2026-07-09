@@ -230,6 +230,62 @@ It is not `verify-release`, and it deliberately is not folded into it: a release
 byte-perfect must not fail verification on the day the card's wording improved. See
 [`DATASET_CARD.md`](DATASET_CARD.md) §3.
 
+## An "optional accelerator" changes the answer, not the speed
+
+`docs/PLAN.md` §3 lists `scikit-learn` as an optional accelerator with a pure-Python fallback.
+That framing is wrong, and Milestone 13 measured how wrong. `resolve_near_method("auto")`
+returns `tfidf` iff scikit-learn is importable and `jaccard` otherwise; the two disagree about
+which examples are duplicates; duplicates become blocks; the adversarial split will not cut
+through a block; and `eval_id` folds the split in.
+
+Rebuilding `bio_toy` from the same bytes, the same command, and the same seed on a machine
+without the accelerator produces the same `content_id`, a **different** `eval_id`, a different
+held-out set, 9 blocks instead of 8, and a different `examples.jsonl` digest. `REPRODUCE.md`
+used to claim the build was "deterministic given the same inputs and seed". **The environment
+is an input**, and every release now records `dependence.near_method` and an `Environment`
+section naming it.
+
+The mitigation is partial. A release *records* the method that ran; nothing in a release
+directory can *verify* it, because verifying it means rebuilding. `verify-release` runs no
+detector, so integrity checks are environment-independent even though reproduction is not —
+which is the only reason a release built on one machine can be trusted on another at all.
+
+## Dedup findings do not compose, so neither do the counts derived from them
+
+TF-IDF's idf term is computed over the document collection, so a near-duplicate similarity is a
+property of a **pair and its corpus**, not of the pair. Two consequences, both measured on the
+committed fixtures (`tests/test_contracts.py`):
+
+- **Independent-block count is not additive.** The five fixtures hold 45 blocks apart and 44
+  pooled, at 56 examples either way. The lost block is *inside* `safety_toy`; the pooled corpus
+  contains no cross-fixture duplicate edge at all. Appending unrelated data can move an
+  untouched example's block, hence its split, hence `eval_id`.
+- **A gate verdict is not preserved under union.** `safety_toy` alone passes a one-cluster
+  near-duplicate budget; concatenated with four fixtures sharing no duplicate with it, the same
+  ten rows fail.
+
+Under the `jaccard` fallback both properties hold, because raw set overlap ignores the corpus.
+Composability is a property of the similarity function. Audit the corpus you will score on;
+`GateReport.applies_to()` refuses to carry a verdict across a change of `content_id`.
+
+## `audit.json` records what was found, never what was looked at
+
+Zero findings over zero retrieved passages and zero findings over a thousand clean passages
+serialize identically. Milestone 12 made this point about checks that could not run on an
+unsplit corpus and printed a warning; Milestone 13's gate turns it into a third verdict,
+`undecidable`, which never counts as a pass.
+
+One gap is in the format rather than in a corpus, and it is the same one the section above
+records from the dataset card's side. Milestone 8 runs a permutation test asking whether the
+difficulty heuristic's ranking beats a random one, Milestone 10 renders the answer as prose in
+`audit.recommendations`, and `audit.json` keeps only the three bucket counts. A consumer reading
+`difficulty_distribution` cannot tell a calibrated heuristic from noise, and can recover the
+verdict only by pattern-matching English. The `difficulty_is_calibrated` requirement therefore
+returns `undecidable` on every release this tool has ever built. It is in no profile, and it
+exists so that the gap is executable rather than a sentence in a document — the card pays for it
+with an unconditional caveat, and every consumer pays for it with a verdict it cannot obtain.
+See [`INTEGRATION.md`](INTEGRATION.md).
+
 ## Non-goals
 
 - Not a certifier of universal benchmark quality.

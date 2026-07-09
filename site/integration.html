@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>eval-dataset-forge — Integration contracts</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="site">
+  <a class="brand" href="index.html">eval-dataset-<span>forge</span></a>
+  <div class="tagline">Audit, version, and stress-test evaluation datasets — CPU-only, offline.</div>
+  <nav class="site">
+    <a href="index.html">Overview</a>
+    <a href="schema.html">Schema</a>
+    <a href="validation.html">Validation</a>
+    <a href="audit-pipeline.html">Audit pipeline</a>
+    <a href="deduplication.html">Deduplication</a>
+    <a href="leakage.html">Leakage</a>
+    <a href="label-audit.html">Label audit</a>
+    <a href="splits.html">Splits</a>
+    <a href="difficulty.html">Difficulty</a>
+    <a href="statistics.html">Statistics</a>
+    <a href="releases.html">Releases</a>
+    <a href="dataset-card.html">Dataset card</a>
+    <a href="integration.html" class="active">Integration</a>
+    <a href="results.html">Results</a>
+    <a href="limitations.html">Limitations</a>
+    <a href="roadmap.html">Roadmap</a>
+    <a href="milestones.html">Milestones</a>
+  </nav>
+</header>
+<main>
+  <p><span class="status done">implemented in Milestone 13</span></p>
+  <h1>Integration contracts</h1>
+  <p class="lede">Five adjacent projects want to consume audited releases. None of them is a
+  dependency of this package and none exists in this repository. What is committed is the
+  <em>shape</em> of the question each one asks — executable, tested against the fixtures, and
+  versioned. Writing those questions down turned up four properties of the pipeline that no earlier
+  milestone had stated. Two were defects in claims the repo was already making; one was a defect in
+  this milestone's own first draft, caught by checking a docstring rather than shipping it.</p>
+
+  <div class="callout warn"><strong>The headline.</strong> <code>scikit-learn</code> is documented
+  as an <em>optional accelerator</em> with a pure-Python fallback. It is not an accelerator — it is a
+  different detector. Rebuilding <code>bio_toy</code> from identical bytes, an identical command and
+  an identical seed yields the same <code>content_id</code> and a <strong>different
+  <code>eval_id</code></strong>, a different held-out set, and 9 independent blocks instead of 8,
+  purely because the package was importable. <code>REPRODUCE.md</code> claimed the build was
+  "deterministic given the same inputs and seed". <strong>The environment is an input.</strong></div>
+
+  <h2>1. An audit has no opinion; a gate does</h2>
+  <p><code>audit.json</code> reports that <code>qa-007</code> quotes its gold answer inside its own
+  prompt. It does not say whether that is disqualifying, because the answer depends on who is asking.
+  A retrieval benchmark measuring passage ranking may not care; a code-agent runtime about to gate a
+  deployment on that benchmark cares a great deal. So the threshold lives with the <em>consumer</em>,
+  in a reviewable <code>GatePolicy</code>, never in the release. A release carrying its own pass/fail
+  verdict would be a dataset grading itself.</p>
+
+  <pre><code>evalforge gate --release datasets/releases/qa_toy_v0.1.0 --profile code-agent-runtime</code></pre>
+  <p>Exit 0 when the gate passes, 1 when it does not, 2 on a usage error.</p>
+
+  <h3>Three verdicts, not two</h3>
+  <table>
+    <tr><th>verdict</th><th>meaning</th></tr>
+    <tr><td><code>pass</code></td><td>the check ran on data it could act on, and found nothing</td></tr>
+    <tr><td><code>fail</code></td><td>the check ran and found something</td></tr>
+    <tr><td><code>undecidable</code></td><td>the check could not run, or the release does not carry the evidence</td></tr>
+  </table>
+  <p>Milestone 12 established that on an unsplit corpus four leakage signals return zero <em>by
+  vacuity</em>, and printed a warning beside them. A warning is advice. A boolean gate that maps
+  <code>leakage_flags == [] → pass</code> silently converts vacuity into permission. So
+  <code>undecidable</code> is a distinct value, it never counts as a pass, and a policy that proceeds
+  anyway must set <code>allow_undecidable: true</code> where a reviewer can see it.</p>
+
+  <p>Two requirements reach it, for two different reasons, and the difference is worth keeping:</p>
+  <ul>
+    <li><strong><code>no_retrieval_contamination</code> on <code>qa_toy</code></strong> — no example
+      carries <code>metadata.retrieval.docs</code>, so the check inspected nothing. It is decidable on
+      <code>retrieval_toy</code>. <em>A fact about the corpus.</em></li>
+    <li><strong><code>difficulty_is_calibrated</code> on every release this tool has ever built</strong>
+      — Milestone 8 runs a permutation test asking whether the difficulty heuristic beats a random
+      ranking; Milestone 10 renders the answer as an English sentence; <code>audit.json</code> keeps the
+      three bucket counts and drops the verdict. A consumer can recover it only by pattern-matching
+      prose. <em>A fact about the release format.</em> Milestone 11's review note already asked whether
+      that field should exist; the contract does not discover the gap but makes it executable, and adds a
+      second reason to close it — besides forcing the dataset card to print an unconditional caveat, it
+      denies every consumer a verdict. The requirement ships in the registry and in no profile.</li>
+  </ul>
+  <p><code>audit.json</code> records what each check <em>found</em>. It does not record what each check
+  was <em>given</em>. Zero findings over zero passages and zero findings over a thousand clean passages
+  serialize identically.</p>
+
+  <h2>2. Three identities, three consumer-side scopes</h2>
+  <p>Milestone 10 gave a release three identities because a file hash answers the wrong question. Each
+  turns out to be the scope of exactly one downstream claim.</p>
+  <table>
+    <tr><th>identity</th><th>scopes</th><th>a consumer that ignores it</th></tr>
+    <tr><td><code>content_id</code></td><td>a <strong>content-scoped gate verdict</strong></td>
+        <td>reuses a verdict on a corpus it was not computed on</td></tr>
+    <tr><td><code>eval_id</code></td><td>a <strong>score</strong>, and a <strong>split-sensitive gate verdict</strong></td>
+        <td>compares two numbers measured on different held-out sets</td></tr>
+    <tr><td><code>dependence.near_method</code></td><td>a <strong>rebuild</strong></td>
+        <td>cannot reproduce the release it depends on</td></tr>
+  </table>
+  <p>The third row is what this milestone had to discover; the second turned out to scope more than
+  Milestone 10 assigned to it (§4).</p>
+
+  <h3>The optional accelerator is a different detector</h3>
+  <p><code>resolve_near_method("auto")</code> returns <code>tfidf</code> if and only if scikit-learn is
+  importable, and <code>jaccard</code> otherwise. The two disagree about which examples are duplicates.
+  Duplicates become blocks; the adversarial split refuses to cut through a block; <code>eval_id</code>
+  folds the split in. On <code>bio_toy</code>, <code>bio-001</code> ≈ <code>bio-002</code> clears the
+  0.30 threshold under idf weighting and not under raw set overlap. One pair, one threshold.</p>
+  <table>
+    <tr><th></th><th>scikit-learn present</th><th>scikit-learn absent</th></tr>
+    <tr><td><code>near_method</code></td><td><code>tfidf</code></td><td><code>jaccard</code></td></tr>
+    <tr><td>near-duplicate clusters</td><td>1</td><td>0</td></tr>
+    <tr><td>independent blocks</td><td>8</td><td>9</td></tr>
+    <tr><td><code>content_id</code></td><td colspan="2"><em>identical</em> — they are the same examples</td></tr>
+    <tr><td><code>eval_id</code></td><td colspan="2"><strong>different</strong> — they are not the same benchmark</td></tr>
+  </table>
+  <p><code>content_id</code> holding is correct, and <code>eval_id</code> moving is the tool telling the
+  truth. What was false was <code>REPRODUCE.md</code>. Every release now records
+  <code>dependence.near_method</code> and carries an <code>Environment</code> section naming it.</p>
+
+  <div class="callout"><strong>Verification is environment-independent; reproduction is not.</strong>
+  <code>verify-release</code> recomputes every file hash and both identities from bytes and runs no
+  detector, so a release built with the accelerator verifies at 10/10 on a machine without it. That
+  asymmetry is the only reason a release built on one machine can be trusted on another — and it is why
+  <a href="releases.html">the open question</a> "should <code>verify-release</code> re-run the audit?"
+  now has an answer: no, it would make integrity depend on the verifier's <code>pip list</code>.</div>
+
+  <h2>3. Two properties that do not hold under union</h2>
+  <p>Both follow from one fact: TF-IDF's idf term is computed over the document collection, so a
+  near-duplicate similarity is a property of a <strong>pair and its corpus</strong>. Milestone 12
+  measured it on <code>sim(saf-004, saf-007)</code>: <strong>0.2866</strong> inside
+  <code>safety_toy</code>, <strong>0.3438</strong> pooled, straddling the 0.30 threshold with neither
+  prompt changed.</p>
+
+  <h3>A gate verdict is not preserved under union</h3>
+  <p><code>safety_toy</code> alone reports one near-duplicate cluster and <strong>passes</strong> a
+  <code>max_near_duplicate_clusters: 1</code> policy. Concatenate it with the four other fixtures —
+  which share <em>not one duplicate</em> with it — and the same ten rows report two clusters and
+  <strong>fail</strong>. Merging two gated releases yields an ungated corpus.
+  <code>GateReport.applies_to()</code> compares <code>content_id</code> and refuses to answer for any
+  other; <code>assert_applies_to()</code> raises rather than warns.</p>
+
+  <h3>Independent-block count is not additive, although example count is</h3>
+  <table>
+    <tr><th>the five fixtures, disjoint</th><th>examples</th><th>independent blocks</th></tr>
+    <tr><td>audited separately, summed (<code>tfidf</code>)</td><td>56</td><td><strong>45</strong></td></tr>
+    <tr><td>audited as one corpus (<code>tfidf</code>)</td><td>56</td><td><strong>44</strong></td></tr>
+    <tr><td>audited as one corpus (<code>jaccard</code>)</td><td>56</td><td><strong>46</strong></td></tr>
+  </table>
+  <p>The pooled corpus contains <strong>zero cross-fixture duplicate edges</strong>. Merging five
+  unrelated datasets found no duplicate <em>between</em> them and still changed one dataset's verdict
+  <em>inside</em> itself: <code>{saf-004, saf-005}</code> grows to
+  <code>{saf-004, saf-005, saf-007}</code>. Appending unrelated data can move an untouched example's
+  block, hence its split, hence a release's <code>eval_id</code>.</p>
+  <p>Under <code>jaccard</code>, which has no idf, the counts are equal. Composability is a property of
+  the <em>similarity function</em>, not of this repository's data — and the optional dependency is
+  exactly what removes it. So a regression suite that doubles its example count has not necessarily
+  bought √2 of anything, and <code>evalforge stats --resample-unit block</code> must be re-derived
+  after any merge. <strong>Audit the corpus you will score on.</strong></p>
+
+  <h2>4. A third property that does not hold, for a different reason</h2>
+  <p><code>content_id</code> is not always enough. <code>no_train_test_overlap</code>,
+  <code>no_retrieval_contamination</code>, <code>eval_splits_deduplicated</code> and
+  <code>eval_split_is_rankable</code> read the split assignment, so their answers move when the seed
+  does while <code>content_id</code> stands still. Building <code>qa_toy</code> forty times with
+  <code>--strategy random</code>, one seed per build:</p>
+  <table>
+    <tr><th></th><th>value</th></tr>
+    <tr><td>distinct <code>content_id</code>s across all 40 releases</td><td><strong>1</strong></td></tr>
+    <tr><td>seeds that <strong>pass</strong> <code>eval_splits_deduplicated</code></td><td>9, 35</td></tr>
+    <tr><td>seeds that <strong>fail</strong> it</td><td>the other 38</td></tr>
+  </table>
+  <p>A gate comparing content alone would hand seed 9's pass to seed 0's release — which is exactly
+  what the first draft of this milestone's own API did, until the docstring claiming otherwise was
+  checked. So a report is scoped to <code>eval_id</code> whenever a split-sensitive requirement ran and
+  to <code>content_id</code> otherwise; <code>GateReport.scope</code> says which, and every rendered
+  report names it. The scope is derived from the requirements that <em>actually executed</em>, never
+  from the split strategy someone claims to have used: the adversarial strategy does hold all four at
+  zero for every seed, and relying on that would be trusting a <code>split_spec</code> field to be
+  true.</p>
+  <p><code>integrity</code> sits outside the scheme entirely — it is a statement about the bytes of one
+  directory, and two releases can share both identities while differing in <code>created_at</code>. A
+  report is never evidence about a directory other than its own <code>release_dir</code>.</p>
+
+  <h2>5. The five contracts</h2>
+  <p>Each profile names its requirements and — at equal weight — two lists nothing else in this
+  repository writes down: what the consumer must establish <em>for itself</em>, and what the profile
+  <em>deliberately does not check</em>. An omission that goes unstated is indistinguishable from an
+  oversight. Every profile begins with <code>integrity</code> and <code>schema_compatible</code>: a
+  finding read out of a release whose bytes do not match its manifest is not a finding.</p>
+  <table>
+    <tr><th>profile</th><th>the question it turns into an exit code</th></tr>
+    <tr><td><code>code-agent-runtime</code></td><td>are these tasks sound enough to gate a run on?</td></tr>
+    <tr><td><code>bioagentbench</code></td><td>is this synthetic biomedical set free of PII and label conflicts?</td></tr>
+    <tr><td><code>llm-regression</code></td><td>can this suite rank two models at all?</td></tr>
+    <tr><td><code>scientific-claim-verifier</code></td><td>are the claim/evidence labels consistent and unleaked?</td></tr>
+    <tr><td><code>agent-control-bench</code></td><td>is this control set clean without being sanitized?</td></tr>
+  </table>
+  <p><strong><code>llm-regression</code> counts blocks, never rows.</strong>
+  <code>eval_split_is_rankable</code> reads <code>dependence.blocks_by_split</code>, because a duplicate
+  cluster contributes <em>m</em> rows and one unit's worth of information
+  (<a href="statistics.html">Milestone 9</a>). A test split of 200 rows in 3 duplicate clusters is a test
+  split of 3.</p>
+  <p><strong><code>agent-control-bench</code> does not require unambiguous labels.</strong> An
+  over-refusal / under-refusal set exists to probe the ambiguous boundary, so an ambiguous label is a
+  feature of the corpus. A profile requiring zero of them would reject every well-constructed control
+  benchmark, <code>safety_toy</code> included.</p>
+
+  <h3>What the demo release scores</h3>
+  <p><code>qa_toy</code> is a deliberately flawed fixture, so <strong>all five profiles reject the
+  release built from it</strong> — a gate that passed it would be broken. The positive control lives in
+  the test suite: a release built with <code>--drop exact,normalized,blocking-labels</code> passes.</p>
+  <table>
+    <tr><th>profile</th><th>verdict</th><th>pass</th><th>fail</th><th>undecidable</th><th>blocking</th></tr>
+    <tr><td><code>agent-control-bench</code></td><td>FAIL</td><td>4</td><td>2</td><td>0</td>
+        <td><code>no_exact_duplicates</code>, <code>no_answer_in_prompt</code></td></tr>
+    <tr><td><code>bioagentbench</code></td><td>FAIL</td><td>3</td><td>3</td><td>0</td>
+        <td>duplicates, conflicting and missing labels</td></tr>
+    <tr><td><code>code-agent-runtime</code></td><td>FAIL</td><td>3</td><td>3</td><td>0</td>
+        <td>missing label, answer-in-prompt, duplicates</td></tr>
+    <tr><td><code>llm-regression</code></td><td>FAIL</td><td>5</td><td>1</td><td>0</td>
+        <td><code>eval_split_is_rankable</code> — the <code>test</code> split holds <strong>2 blocks</strong>, not 30</td></tr>
+    <tr><td><code>scientific-claim-verifier</code></td><td>FAIL</td><td>2</td><td>3</td><td>1</td>
+        <td>3 findings; <code>no_retrieval_contamination</code> undecidable</td></tr>
+  </table>
+
+  <h2>6. The declared read set</h2>
+  <p>A consumer that calls <code>json.load(open("manifest.json"))</code> has taken a dependency on every
+  key in the file, including the ones it does not read, because nothing tells a reader which those are.
+  So the reads are declared: <code>MANIFEST_FIELDS</code>, <code>AUDIT_FIELDS</code>,
+  <code>DEPENDENCE_FIELDS</code>, <code>SPLIT_STAT_FIELDS</code>, <code>SPLIT_COUNT_FIELDS</code> are the
+  entire surface, and a test asserts each name exists both on the pydantic model and in the committed demo
+  release. The compatibility rule is then checkable rather than aspirational:</p>
+  <div class="callout"><strong>Adding a key is a <code>patch</code>. Removing or retyping a declared key
+  is a <code>major</code>, and <code>CONTRACT_VERSION</code> moves with it.</strong> Milestone 12 grew
+  <code>split_statistics</code> by two keys under an unchanged <code>SCHEMA_VERSION</code>. That was
+  legal and invisible. The test that would have caught the <em>reverse</em> now exists.</div>
+
+  <h3>Relevant files</h3>
+  <ul class="files">
+    <li>src/eval_dataset_forge/contracts/reader.py — <code>ReleaseHandle</code>, the read-only
+      surface, and the declared read set</li>
+    <li>src/eval_dataset_forge/contracts/requirements.py — 14 named requirements, three verdicts,
+      and the <code>cannot</code> clause each pass does not license</li>
+    <li>src/eval_dataset_forge/contracts/gate.py — <code>GatePolicy</code>, <code>GateReport</code>,
+      <code>CONTRACT_VERSION</code>, exit-code semantics</li>
+    <li>src/eval_dataset_forge/contracts/profiles.py — the five consumer profiles</li>
+    <li>tests/test_contracts.py · docs/INTEGRATION.md</li>
+  </ul>
+
+  <h3>Status</h3>
+  <p>Implemented. <code>evalforge gate</code> is the thirteenth subcommand; 50 tests cover the
+  contracts, and the full suite is 1756, CPU-only and offline. Every number on this page is
+  reproducible from the committed fixtures.</p>
+
+  <h2>Open questions &amp; limitations</h2>
+  <ul>
+    <li><strong>No gate can ask the question that usually matters.</strong> Whether the model under test
+      was trained on the benchmark is measurable only against text the auditor holds, and nobody holds a
+      frontier model's training set. Every leakage check here is intra-corpus.</li>
+    <li><strong>Should <code>audit.json</code> carry the difficulty calibration verdict?</strong> It is
+      computed and discarded. Adding the field is a schema change; leaving it out means a permanently
+      undecidable requirement. Not decided unilaterally.</li>
+    <li><strong>Should <code>near_method</code> default to <code>jaccard</code>?</strong> TF-IDF dominates
+      Jaccard on the fixtures at every threshold — and it is the reason a duplicate report does not
+      compose. Choosing the weaker detector to buy composability is a real trade, and nothing here
+      settles it.</li>
+    <li><strong><code>min_eval_blocks = 30</code> is a convention</strong>, inherited from Milestone 9's
+      <code>MIN_EFFECTIVE_N</code>, not a theorem. On a corpus with a 3.6-point margin, Milestone 9
+      measured that ≈4500 examples were needed.</li>
+    <li>The five profiles are written from the outside. None of the named projects has reviewed its own
+      contract, so each is a plausible reading of what that consumer needs, not an agreed interface.</li>
+  </ul>
+</main>
+<footer class="site">eval-dataset-forge · MIT · CPU-only · offline · no paid API</footer>
+</body>
+</html>

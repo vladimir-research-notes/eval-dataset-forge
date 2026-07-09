@@ -23,6 +23,7 @@
     <a href="statistics.html">Statistics</a>
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
+    <a href="integration.html">Integration</a>
     <a href="results.html" class="active">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html">Roadmap</a>
@@ -30,7 +31,7 @@
   </nav>
 </header>
 <main>
-  <p><span class="status done">M12</span></p>
+  <p><span class="status done">M13</span></p>
   <h1>Results</h1>
   <p class="lede">The smoke audit runs the entire pipeline over every fixture,
   fully offline. Because the fixtures are hand-authored with deliberate defects,
@@ -384,6 +385,73 @@
   (<code>content_id</code> and <code>eval_id</code> unchanged), so the demo release was
   rebuilt in place at v0.1.0 rather than re-versioned, and a test pins the reasoning.</p>
 
+  <h2>Integration contracts <span class="status done">M13</span></h2>
+  <p>Writing the five downstream contracts measured three things the pipeline had not stated.
+  Full argument: <a href="integration.html">Integration contracts</a>.</p>
+
+  <p><strong>1. The "optional accelerator" is a different detector.</strong> Rebuilding
+  <code>bio_toy</code> from identical bytes, an identical command and an identical seed:</p>
+  <table>
+    <tr><th></th><th>scikit-learn present</th><th>scikit-learn absent</th></tr>
+    <tr><td><code>near_method</code></td><td><code>tfidf</code></td><td><code>jaccard</code></td></tr>
+    <tr><td>near-duplicate clusters</td><td>1 (<code>bio-001</code> ≈ <code>bio-002</code>)</td><td>0</td></tr>
+    <tr><td>independent blocks</td><td>8</td><td>9</td></tr>
+    <tr><td><code>content_id</code></td><td colspan="2"><em>identical</em></td></tr>
+    <tr><td><code>eval_id</code>, held-out set</td><td colspan="2"><strong>different</strong></td></tr>
+  </table>
+  <p><code>content_id</code> holding is correct; <code>eval_id</code> moving is the tool telling the
+  truth. What was false was <code>REPRODUCE.md</code>, which claimed determinism "given the same
+  inputs and seed". The environment is an input, and the file now says so.
+  <code>verify-release</code> runs no detector, so it still passes 10/10 without the accelerator —
+  <strong>verification is environment-independent; reproduction is not.</strong></p>
+
+  <p><strong>2. Neither block counts nor gate verdicts survive a union.</strong> The five fixtures
+  are disjoint and share no example:</p>
+  <table>
+    <tr><th></th><th>examples</th><th>independent blocks</th></tr>
+    <tr><td>audited separately, summed (<code>tfidf</code>)</td><td>56</td><td><strong>45</strong></td></tr>
+    <tr><td>audited as one corpus (<code>tfidf</code>)</td><td>56</td><td><strong>44</strong></td></tr>
+    <tr><td>audited as one corpus (<code>jaccard</code>)</td><td>56</td><td><strong>46</strong></td></tr>
+  </table>
+  <p>The pooled corpus contains <strong>zero cross-fixture duplicate edges</strong>: merging five
+  unrelated datasets found no duplicate between them and still changed one dataset's verdict inside
+  itself. Correspondingly, <code>safety_toy</code> alone <em>passes</em> a
+  <code>max_near_duplicate_clusters: 1</code> policy and the same ten rows <em>fail</em> it inside the
+  pooled corpus. Under <code>jaccard</code>, which has no idf, both counts agree. Example count is
+  additive; statistical power is not.</p>
+  <p>Nor does a verdict survive a <strong>re-split</strong>, for four of the fourteen requirements —
+  a bug in this milestone's own first draft, caught by checking a docstring instead of shipping it.
+  Building <code>qa_toy</code> forty times with <code>--strategy random</code>, all forty releases share
+  <strong>one</strong> <code>content_id</code>; seeds 9 and 35 <em>pass</em>
+  <code>eval_splits_deduplicated</code> and thirty-eight seeds <em>fail</em> it.
+  <code>GateReport.scope</code> is now <code>eval_id</code> whenever a split-sensitive requirement ran.</p>
+
+  <p><strong>3. A gate needs a third verdict.</strong> <code>pass</code> / <code>fail</code> /
+  <code>undecidable</code>, and <code>undecidable</code> never counts as a pass.
+  <code>no_retrieval_contamination</code> is undecidable on <code>qa_toy</code> because no example
+  carries passages — a fact about the corpus. <code>difficulty_is_calibrated</code> is undecidable on
+  <em>every</em> release this tool has built, because <code>audit.json</code> keeps the three
+  difficulty bucket counts and drops the permutation test that says whether they mean anything — a
+  fact about the release format. Milestone 11's review note already asked whether that field should
+  exist; the contract makes the gap executable and gives it a second cost.</p>
+
+  <p>All five profiles reject the release built from the deliberately flawed <code>qa_toy</code>
+  fixture. A gate that passed it would be broken; the positive control is a <code>--drop</code>-repaired
+  release that passes.</p>
+  <table>
+    <tr><th>profile</th><th>verdict</th><th>pass</th><th>fail</th><th>undecidable</th><th>blocking</th></tr>
+    <tr><td><code>agent-control-bench</code></td><td>FAIL</td><td>4</td><td>2</td><td>0</td>
+        <td>duplicates, answer-in-prompt</td></tr>
+    <tr><td><code>bioagentbench</code></td><td>FAIL</td><td>3</td><td>3</td><td>0</td>
+        <td>duplicates, conflicting and missing labels</td></tr>
+    <tr><td><code>code-agent-runtime</code></td><td>FAIL</td><td>3</td><td>3</td><td>0</td>
+        <td>missing label, answer-in-prompt, duplicates</td></tr>
+    <tr><td><code>llm-regression</code></td><td>FAIL</td><td>5</td><td>1</td><td>0</td>
+        <td><code>eval_split_is_rankable</code> — <code>test</code> holds <strong>2 blocks</strong>, not 30</td></tr>
+    <tr><td><code>scientific-claim-verifier</code></td><td>FAIL</td><td>2</td><td>3</td><td>1</td>
+        <td>3 findings; <code>no_retrieval_contamination</code> undecidable</td></tr>
+  </table>
+
   <h2>Reproduce</h2>
 <pre><code>python3 -m pytest -q tests/test_dedup.py      # 99 tests
 python3 -m pytest -q tests/test_leakage.py    # 111 tests
@@ -418,7 +486,14 @@ PYTHONPATH=src python3 -m eval_dataset_forge smoke \
 
 PYTHONPATH=src python3 -m eval_dataset_forge audit \
     --dataset datasets/fixtures/qa_toy/examples.jsonl \
-    --out results/audits/qa_toy/</code></pre>
+    --out results/audits/qa_toy/
+
+python3 -m pytest -q tests/test_contracts.py   # 50 tests
+
+PYTHONPATH=src python3 -m eval_dataset_forge gate --list
+PYTHONPATH=src python3 -m eval_dataset_forge gate \
+    --release datasets/releases/qa_toy_v0.1.0 \
+    --profile llm-regression                   # exits 1, by design</code></pre>
 
   <h3>Status</h3>
   <p>Every stage is implemented and every number above is reproducible offline from the

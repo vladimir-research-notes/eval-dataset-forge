@@ -23,6 +23,7 @@
     <a href="statistics.html">Statistics</a>
     <a href="releases.html">Releases</a>
     <a href="dataset-card.html">Dataset card</a>
+    <a href="integration.html">Integration</a>
     <a href="results.html">Results</a>
     <a href="limitations.html">Limitations</a>
     <a href="roadmap.html">Roadmap</a>
@@ -57,7 +58,7 @@
     <tr><td>10</td><td>Release builder</td><td>dataset JSONL, manifest, split files, audit summary, hashes, versioned release dir</td><td><span class="status done">done</span></td></tr>
     <tr><td>11</td><td>Dataset card generator</td><td>Markdown + optional HTML cards</td><td><span class="status done">done</span></td></tr>
     <tr><td>12</td><td>Smoke audit &amp; results</td><td>full offline audit over all fixtures → results/ + docs/RESULTS.md; findings scored against planted ground truth</td><td><span class="status done">done</span></td></tr>
-    <tr><td>13</td><td>Integration contracts</td><td>documented contracts for code-agent-runtime, BioAgentBench, LLM regression, scientific-claim-verifier, agent-control-bench</td><td><span class="status pending">planned</span></td></tr>
+    <tr><td>13</td><td>Integration contracts</td><td>executable contracts + <code>evalforge gate</code> for code-agent-runtime, BioAgentBench, LLM regression, scientific-claim-verifier, agent-control-bench</td><td><span class="status done">done</span></td></tr>
     <tr><td>14</td><td>Final portfolio report</td><td>README + docs to portfolio quality</td><td><span class="status pending">planned</span></td></tr>
     <tr><td>15</td><td>Final cleanup</td><td>tests, lint, fixture validation, smoke audit, release build, report gen, hygiene scan, clean tree</td><td><span class="status pending">planned</span></td></tr>
   </table>
@@ -299,8 +300,29 @@
   <a href="results.html">Results</a> page.</p>
 
   <h3>Milestone 13 — Integration contracts</h3>
-  <p>Document how downstream projects consume audited releases, without taking a
-  dependency on any of them. See the <a href="roadmap.html">Roadmap</a>.</p>
+  <p>Five downstream projects, five executable contracts, one new command:
+  <code>evalforge gate --release … --profile llm-regression</code>. A gate needs an opinion an
+  audit does not have, so the policy lives with the consumer; and it needs a
+  <strong>third verdict</strong>, because a boolean gate that maps <code>leakage_flags == [] → pass</code>
+  converts Milestone 12's vacuous zeros into permission. <code>undecidable</code> never passes
+  unless a policy says so in writing.</p>
+  <p>Writing the contracts down measured three things nothing earlier had stated. The
+  <code>scikit-learn</code> that <code>docs/PLAN.md</code> calls an "optional accelerator" is a
+  <em>different detector</em>: rebuilding <code>bio_toy</code> from identical bytes, an identical
+  command and an identical seed yields the same <code>content_id</code> and a <strong>different
+  <code>eval_id</code></strong> when the package is absent. <code>REPRODUCE.md</code> claimed
+  determinism "given the same inputs and seed" — the environment is an input, and every release now
+  records the method that ran. <code>verify-release</code> touches no detector, so verification is
+  environment-independent where reproduction is not.</p>
+  <p>The other two are consequences of idf being computed over the collection. A <strong>gate verdict
+  is not preserved under union</strong>: <code>safety_toy</code> passes a one-cluster near-duplicate
+  budget alone and the same ten rows fail it beside four fixtures that share no duplicate with them.
+  And <strong>independent-block count is not additive</strong> though example count is — 45 blocks
+  apart, 44 pooled, at 56 examples either way, with zero cross-fixture duplicate edges. Under the
+  <code>jaccard</code> fallback both properties hold, so composability is a property of the similarity
+  function and the optional dependency is what removes it. All five profiles reject the release built
+  from the deliberately flawed <code>qa_toy</code> fixture, which is the only correct answer. See
+  <a href="integration.html">Integration contracts</a>.</p>
 
   <h3>Milestone 14 — Final portfolio report</h3>
   <p>Bring README and docs to portfolio quality: problem, architecture, example

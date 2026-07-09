@@ -9,12 +9,11 @@ schema validation, deduplication, leakage/contamination checks, label-quality
 audits, difficulty calibration, split construction, bootstrap uncertainty
 estimates, dataset cards, and reproducible release manifests.
 
-> Status: **Milestone 0 — Scaffold & project contract.** The package skeleton,
-> CLI, full build plan (`docs/PLAN.md`), operating contract (`CLAUDE.md`),
-> multi-page website, environment check, milestone runner, and CPU-only test
-> suite are in place. The audit subsystems (schemas → dedup → leakage → labels →
-> difficulty → splits → statistics → release → card) land milestone by milestone;
-> see [`docs/PLAN.md`](docs/PLAN.md).
+> Status: **Milestone 13 — Integration contracts.** The audit subsystems (schemas →
+> dedup → leakage → labels → difficulty → splits → statistics → release → card →
+> smoke audit) are implemented and scored against planted ground truth, and five
+> downstream consumers now have executable contracts (`evalforge gate`). Remaining:
+> the portfolio report (M14) and final cleanup (M15). See [`docs/PLAN.md`](docs/PLAN.md).
 
 ## The problem
 
@@ -77,11 +76,12 @@ evalforge audit        --dataset datasets/fixtures/qa_toy/examples.jsonl --out r
 evalforge build-splits --dataset datasets/fixtures/qa_toy/examples.jsonl --strategy stratified --out datasets/releases/qa_toy_v0.1/
 evalforge dataset-card --release datasets/releases/qa_toy_v0.1.0 --out results/reports/qa_toy_dataset_card.md
 evalforge smoke        --out results/reports/smoke_audit.md
+evalforge gate         --release datasets/releases/qa_toy_v0.1.0 --profile llm-regression
 ```
 
-Working today: `check-env`, `version`, `info`, `validate`, `build-splits`,
-`difficulty`, `stats`, `release`, `verify-release`, `dataset-card`. `audit` and
-`smoke` are declared and point at the milestone that implements them.
+All 13 subcommands are implemented: `check-env`, `version`, `info`, `validate`,
+`audit`, `build-splits`, `difficulty`, `stats`, `release`, `verify-release`,
+`dataset-card`, `smoke`, `gate`.
 
 ## Fixture datasets
 
@@ -103,8 +103,9 @@ defects to find (no real personal or clinical data):
 ## Documentation & website
 
 Full docs under [`docs/`](docs/): methodology, dataset schema, deduplication,
-leakage, label audit, splits, difficulty, statistics, results, limitations,
-safety, reproducibility, and the paper path. A multi-page static site lives under
+leakage, label audit, splits, difficulty, statistics, releases, dataset card,
+[integration contracts](docs/INTEGRATION.md), results, limitations, safety,
+reproducibility, and the paper path. A multi-page static site lives under
 [`site/`](site/):
 
 ```bash
@@ -126,9 +127,10 @@ is clean, and the tests pass. See [`docs/PLAN.md`](docs/PLAN.md) §10–13.
 
 - An Anthropic-relevant SWE/research portfolio artifact.
 - A reusable **dataset-quality layer** for agent/eval projects.
-- A benchmark-building tool for adjacent projects (agent-control-bench,
-  BioAgentBench, LLM regression/observability, scientific-claim-verifier) — see
-  the integration contracts in Milestone 13.
+- A benchmark-building tool for adjacent projects (code-agent-runtime,
+  BioAgentBench, LLM regression/observability, scientific-claim-verifier,
+  agent-control-bench). Each is an executable profile of `evalforge gate`; see
+  [`docs/INTEGRATION.md`](docs/INTEGRATION.md). None of them is a dependency.
 
 ## Limitations
 

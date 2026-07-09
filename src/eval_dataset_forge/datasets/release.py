@@ -300,8 +300,9 @@ def render_reproduce(
     command: str,
     exclusions: Sequence[Exclusion],
     identity: Mapping[str, str],
+    near_method: str,
 ) -> bytes:
-    """The release's ``REPRODUCE.md``: the command, the identities, the gaps.
+    """The release's ``REPRODUCE.md``: the command, the environment, the identities, the gaps.
 
     ``command`` arrives without ``--version`` and ``--out``, which are appended here: under
     ``--version auto`` neither is known until the delta has been computed, and a
@@ -309,11 +310,21 @@ def render_reproduce(
     none. The recorded command writes to the canonical release path; a build that redirected
     ``--out`` elsewhere still reproduces into the canonical one.
 
+    ``near_method`` is recorded because the command is **not** sufficient to reproduce the
+    release (Milestone 13). ``near`` resolves to ``tfidf`` iff scikit-learn is importable and
+    to ``jaccard`` otherwise, the two disagree about which examples are duplicates, and the
+    adversarial split is built from duplicate blocks. Rebuilding ``bio_toy`` from identical
+    bytes, an identical command, and an identical seed on a machine without the optional
+    accelerator yields a different ``eval_id``. The environment is an input; this file used
+    to claim otherwise.
+
     Deliberately free of ``created_at``. ``REPRODUCE.md`` is a hashed artifact, so anything
     it embeds becomes part of the release's file hashes; embedding the clock would make
     every rebuild differ from every other and reduce the ``none`` verdict of
     :func:`~eval_dataset_forge.datasets.versioning.compare` to unreachable decoration. The
     timestamp lives in ``manifest.json`` alone, which is the one artifact nothing hashes.
+    ``near_method`` is not a clock: it is a property of the build that produced these bytes,
+    and two builds that disagree about it produce different bytes anyway.
     """
     sizes = ", ".join(f"{name}={count}" for name, count in sorted(split_counts.items()))
     command = " \\\n  ".join(
@@ -324,10 +335,12 @@ def render_reproduce(
         or "None. Every source example is in this release."
     )
     sources = "\n".join(f"- `{path}`" for path in source_files)
+    accelerator = "scikit-learn installed" if near_method == "tfidf" else "no scikit-learn"
     body = f"""# Reproducing {dataset_id} v{version}
 
 Built by eval-dataset-forge {__version__} against schema {identity["schema_version"]}.
-CPU-only, offline, and deterministic given the same inputs and seed.
+CPU-only and offline. Deterministic given the same inputs, the same seed, **and the same
+build environment** — see below.
 
 ## Command
 
@@ -335,9 +348,25 @@ CPU-only, offline, and deterministic given the same inputs and seed.
 {command}
 ```
 
-Every artifact above is byte-identical on a rebuild. `manifest.json` additionally records
-`created_at`; add `--created-at <that value>` to reproduce it too. The timestamp is
-provenance, not identity — it enters no hash and neither `content_id` nor `eval_id`.
+Every artifact above is byte-identical on a rebuild in the environment recorded below.
+`manifest.json` additionally records `created_at`; add `--created-at <that value>` to
+reproduce it too. The timestamp is provenance, not identity — it enters no hash and neither
+`content_id` nor `eval_id`.
+
+## Environment
+
+| input | value |
+|---|---|
+| near-duplicate method | `{near_method}` ({accelerator}) |
+| tool version | `{__version__}` |
+| schema version | `{identity["schema_version"]}` |
+
+**The command is not sufficient.** `near` resolves to `tfidf` when scikit-learn is
+importable and to `jaccard` otherwise. The two methods disagree about which examples are
+duplicates; the adversarial split refuses to cut through a duplicate block; and `eval_id`
+folds the split in. So rebuilding this release without the "optional accelerator" can
+produce different splits and a different `eval_id` from the same bytes and the same seed.
+Reproduce with the method above, or accept that you have built a different benchmark.
 
 ## Identity
 
@@ -352,7 +381,7 @@ provenance, not identity — it enters no hash and neither `content_id` nor `eva
 answers *"are these the same examples?"*. `eval_id` folds each example's split in — it
 answers *"are two scores measured on these releases comparable?"*. Rebuilding with a
 different `--seed` preserves the first and changes the second, which is the entire reason
-both exist.
+both exist. Rebuilding with a different `near_method` does the same.
 
 ## Verify without rebuilding
 
@@ -361,9 +390,13 @@ PYTHONPATH=src python3 -m eval_dataset_forge verify-release \\
   --release datasets/releases/{dataset_id}_v{version}
 ```
 
-This recomputes every file hash and both identities from the release's own contents. It is
-an **integrity** check, not an authenticity one: `manifest.json` cannot hash itself, so
-anyone able to rewrite the data can rewrite the digests that describe it.
+This recomputes every file hash and both identities from the release's own contents. It
+runs no detector, so — unlike the rebuild above — its answer does not depend on which
+optional packages are installed. Verification is environment-independent; reproduction is
+not.
+
+It is an **integrity** check, not an authenticity one: `manifest.json` cannot hash itself,
+so anyone able to rewrite the data can rewrite the digests that describe it.
 
 ## Excluded from the source corpus
 
@@ -551,6 +584,7 @@ def build_release(
                 "eval_id": eval_id(assigned),
                 "source_content_id": source_id,
             },
+            near_method=dedup.near_method,
         )
         artifacts = _render_artifacts(assigned, split_report, audit, reproduce)
 

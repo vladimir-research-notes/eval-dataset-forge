@@ -106,9 +106,34 @@ PYTHONPATH=src python3 -m eval_dataset_forge smoke \
 ## Determinism
 
 Randomized steps (split construction, bootstrap resampling, permutation tests)
-take an explicit `--seed`. Given the same fixtures and seed, audits, splits, and
-statistics are byte-reproducible. Content hashes in each release `manifest.json`
-let you verify that a rebuilt release matches a prior one.
+take an explicit `--seed`. Given the same fixtures, the same seed, **and the same
+environment**, audits, splits, and statistics are byte-reproducible. Content hashes
+in each release `manifest.json` let you verify that a rebuilt release matches a
+prior one.
+
+### The environment is an input
+
+The optional accelerator `scikit-learn` is not an accelerator. Near-duplicate detection
+resolves to `tfidf` when it is importable and to `jaccard` when it is not, and the two
+methods disagree about which examples are duplicates. Duplicates become blocks, the
+adversarial split refuses to cut through a block, and `eval_id` folds the split in — so
+rebuilding `bio_toy` from identical bytes, an identical command, and an identical seed
+yields a **different `eval_id`** and a different held-out set on a machine without it.
+
+Every release therefore records `dependence.near_method`, and its `REPRODUCE.md` carries
+an `Environment` section naming the method that actually ran. Reproduce with that method,
+or accept that you have built a different benchmark. Pin it in CI:
+
+```bash
+PYTHONPATH=src python3 -m eval_dataset_forge gate \
+  --release datasets/releases/qa_toy_v0.1.0 \
+  --requirement near_method_recorded --profile llm-regression
+```
+
+`verify-release` is the exception, and deliberately: it recomputes file hashes and both
+identities from bytes and runs no detector, so a release built with the accelerator
+verifies at 10/10 on a machine without it. **Verification is environment-independent;
+reproduction is not.** See [`INTEGRATION.md`](INTEGRATION.md).
 
 A release separates **identity** from **provenance**, and the separation is what makes
 "byte-reproducible" true rather than nearly true. `created_at` is the only value that varies

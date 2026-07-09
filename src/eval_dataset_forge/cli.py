@@ -2,6 +2,8 @@
 
 Every subcommand in ``docs/PLAN.md`` §8 is implemented as of Milestone 12; the parser has kept
 the same shape since the scaffold, so the CLI contract was visible before any of it worked.
+Milestone 13 adds ``gate``, the one command that reads a *consumer's* policy rather than only
+the dataset — additive, and it reshapes nothing.
 
 Top-level imports are stdlib-only so ``evalforge --help`` and ``check-env`` work
 before the optional scientific stack is installed. Heavy imports (pydantic,
@@ -13,6 +15,7 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import json
+import pathlib
 import sys
 
 from eval_dataset_forge import SCHEMA_VERSION, __version__
@@ -406,6 +409,79 @@ def cmd_dataset_card(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
     return 1 if args.fail_on_incomplete and missing else 0
+
+
+def cmd_gate(args: argparse.Namespace) -> int:
+    """Decide whether a release satisfies one downstream consumer's requirements.
+
+    Exit 0 when the gate passes, 1 when it does not, 2 on a usage or parse error. A
+    requirement that *could not run* — the retrieval check on a corpus with no passages —
+    is ``undecidable``, and undecidable is not a pass: it blocks unless the policy sets
+    ``allow_undecidable``. That is Milestone 12's "a check that could not run is not a
+    check that passed", promoted from a warning to an exit code.
+
+    The release is opened without verifying first, because ``integrity`` is one of the
+    requirements: a corrupt release earns a report, not a traceback. The contracts package
+    is imported lazily so the stdlib-only commands keep working without pydantic.
+    """
+    from eval_dataset_forge.contracts import (
+        ContractViolation,
+        GatePolicy,
+        ReleaseHandle,
+        evaluate_gate,
+        format_gate,
+        format_profiles,
+        gate_document,
+    )
+
+    if args.list:
+        print(format_profiles())
+        return 0
+    if not args.release:
+        print("error: --release is required (or use --list)", file=sys.stderr)
+        return 2
+    if not args.profile and not args.policy:
+        print("error: one of --profile or --policy is required", file=sys.stderr)
+        return 2
+
+    try:
+        policy = (
+            GatePolicy.from_file(args.policy)
+            if args.policy
+            else GatePolicy.for_profile(args.profile)
+        )
+        if args.allow_undecidable:
+            policy = policy.model_copy(update={"allow_undecidable": True})
+        handle = ReleaseHandle.open(args.release, verify=False)
+        report = evaluate_gate(handle, policy, requirements=args.requirement or None)
+    except (ContractViolation, ValueError, OSError) as error:
+        print(f"error: {error}", file=sys.stderr)
+        return 2
+
+    if args.json:
+        print(json.dumps(report.to_dict(), indent=2, ensure_ascii=False))
+    else:
+        print(format_gate(report))
+
+    if args.out:
+        from eval_dataset_forge.reports.markdown import to_bytes
+
+        _write(args.out, to_bytes(gate_document(report)))
+        print(f"wrote gate report to {args.out}", file=sys.stderr)
+    if args.html:
+        from eval_dataset_forge.reports.html import to_bytes as html_bytes
+
+        _write(args.html, html_bytes(gate_document(report)))
+        print(f"wrote gate report to {args.html}", file=sys.stderr)
+
+    return report.exit_code
+
+
+def _write(path: str, payload: bytes) -> None:
+    """Write ``payload`` to ``path``, creating parent directories."""
+    target = pathlib.Path(path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_bytes(payload)
 
 
 def cmd_audit(args: argparse.Namespace) -> int:
@@ -837,6 +913,43 @@ def build_parser() -> argparse.ArgumentParser:
         "--json", action="store_true", help="emit the DatasetCard as JSON instead of Markdown"
     )
     p_card.set_defaults(func=cmd_dataset_card)
+
+    p_gate = sub.add_parser(
+        "gate", help="check a release against one downstream consumer's requirements"
+    )
+    p_gate.add_argument("--release", help="path to a release directory")
+    p_gate.add_argument(
+        "--profile",
+        help="a committed consumer profile (see --list): code-agent-runtime, bioagentbench, "
+        "llm-regression, scientific-claim-verifier, agent-control-bench",
+    )
+    p_gate.add_argument(
+        "--policy",
+        metavar="PATH",
+        help="a YAML/JSON GatePolicy; overrides --profile. Thresholds belong to the consumer, "
+        "not to the dataset, so they live in a file the consumer reviews",
+    )
+    p_gate.add_argument(
+        "--requirement",
+        action="append",
+        metavar="NAME",
+        help="run only these requirements instead of the profile's (repeatable)",
+    )
+    p_gate.add_argument(
+        "--allow-undecidable",
+        action="store_true",
+        help="let a requirement that could not run pass the gate. Off by default: a vacuous "
+        "zero is not a clean result",
+    )
+    p_gate.add_argument("--out", metavar="PATH", help="also write the report as Markdown")
+    p_gate.add_argument("--html", metavar="PATH", help="also write the report as standalone HTML")
+    p_gate.add_argument(
+        "--list", action="store_true", help="list the profiles and requirements, then exit 0"
+    )
+    p_gate.add_argument(
+        "--json", action="store_true", help="emit the report as JSON instead of Markdown"
+    )
+    p_gate.set_defaults(func=cmd_gate)
 
     p_smoke = sub.add_parser(
         "smoke",
