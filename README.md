@@ -11,10 +11,11 @@ card, and a reproducible release manifest.
 Everything runs offline on a CPU. No GPU, no network, no paid API — not as a fallback
 mode, but as the only mode.
 
-> **Status: Milestone 14 of 15 — final portfolio report.** The pipeline is implemented
-> end to end and scored against planted ground truth; five downstream consumers have
-> executable contracts; and the documentation is now audited by the repository itself.
-> Remaining: final cleanup (M15). See [`docs/PLAN.md`](docs/PLAN.md).
+> **Status: complete — all milestones (0–15, through final cleanup) have landed.** The
+> pipeline is implemented end to end and scored against planted ground truth; five
+> downstream consumers have executable contracts; and the documentation is audited by the
+> repository itself. The full gate runs clean offline (1852 tests). See
+> [`docs/PLAN.md`](docs/PLAN.md) and [`docs/RESULTS.md`](docs/RESULTS.md).
 
 ---
 
